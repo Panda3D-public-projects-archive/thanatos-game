@@ -6,10 +6,15 @@ from direct.showbase.DirectObject import DirectObject
 import random
 import sys
 import math
+from direct.directtools.DirectGeometry import LineNodePath
 from pandac.PandaModules import CollisionHandlerQueue, CollisionNode, CollisionSphere, CollisionTraverser, BitMask32, CollisionRay
 from direct.showbase.ShowBase import Plane, ShowBase, Vec3, Point3, CardMaker 
 
-#VERSION 0.1.2
+from direct.directbase.DirectStart import *
+from pandac.PandaModules import *
+
+
+#VERSION 0.1.3
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -32,9 +37,49 @@ class World:
     #Leave it as True unless you have all the textures and sound effects
     self.testmode = True
     
+    #Creates the main region which displays the solar system itself
+    #Also creates a new mouseWatcherNode so mouse picking works
+    #according to the region clicked during the mouse callback
+    self.mainRegion = base.cam.node().getDisplayRegion(0)
+    self.mainRegion.setDimensions(0,0.8,0,1)
+    base.mouseWatcherNode.setDisplayRegion(self.mainRegion)
     base.setBackgroundColor(0, 0, 0)
     camera.setPos ( 0, 0, 0 )
     camera.setHpr ( 0, -90, 0 )
+    
+    #Same procedure as above, but this is for the minimap
+    self.minimapRegion = base.win.makeDisplayRegion(0.81, 0.99, 0.71, 0.98)
+    self.minimapRegion.setSort(1)
+    self.minimapRegion.setClearColor(VBase4(1, 1, 1, 1))
+    self.minimapRegion.setClearColorActive(True)
+    self.minimapRegion.setClearDepthActive(True)
+    minimapc = render.attachNewNode(Camera('minicam'))
+    self.minimapRegion.setCamera(minimapc)
+    minimapc.setPos(0, 0, 270)
+    minimapc.setHpr(0,-90,0)
+    
+    #Same procedure as above, but this is for the menu
+    self.menuRegion = base.win.makeDisplayRegion(0.8,1,0,1)
+    self.menuRegion.setSort(0)
+    myCamera2d = NodePath(Camera('myCam2d'))
+    lens = OrthographicLens()
+    lens.setFilmSize(2, 2)
+    lens.setNearFar(-1000, 1000)
+    myCamera2d.node().setLens(lens)
+    myRender2d = NodePath('myRender2d')
+    myRender2d.setDepthTest(False)
+    myRender2d.setDepthWrite(False)
+    myCamera2d.reparentTo(myRender2d)
+    self.menuRegion.setCamera(myCamera2d)
+    aspectRatio = base.getAspectRatio()
+    myAspect2d = myRender2d.attachNewNode(PGTop('myAspect2d'))
+    myAspect2d.setScale(1.0 / aspectRatio, 1.0, 1.0)
+    myAspect2d.node().setMouseWatcher(base.mouseWatcherNode)
+    imageObject = OnscreenImage(image = 'models/menu.jpg', scale =  (1,1,1), parent = myRender2d)
+    
+
+    self.caution = 0
+    self.lines = LineNodePath(parent = render, thickness = 3.0, colorVec = Vec4(1, 0, 0, 1))
     self.sizescale = 1.6
     self.orbitscale = 10
     
@@ -58,6 +103,10 @@ class World:
     DO=DirectObject()
     DO.accept('mouse1', self.mouseClick, ['down'])
     DO.accept('mouse1-up', self.mouseClick, ['up'])
+    DO.accept('a', self.keyboardPress, ['a'])
+    DO.accept('s', self.keyboardPress, ['s'])
+    DO.accept('d', self.keyboardPress, ['d'])
+    DO.accept('w', self.keyboardPress, ['w'])
 
     #Creation of the plane defined by the solar system (normal (0,0,1) and point(0,0,0))
     self.plane = Plane(Vec3(0, 0, 1), Point3(0, 0, 0))
@@ -75,7 +124,8 @@ class World:
     #traverseTask is responsible for treating collisions while
     #refreshPlanets is responsible for velocity and acceleration calculus
     taskMgr.add(self.traverseTask, 'tsk_traverse')
-    taskMgr.add(self.refreshPlanets, 'refresh')
+    #taskMgr.add(self.refreshPlanets, 'refresh')
+    taskMgr.doMethodLater(0.01, self.refreshPlanets, 'refresh')
 
     #Initialization of several arrays (some are useless now, need futher checking)
     self.orbit_period_planet = [0]*self.n
@@ -102,7 +152,7 @@ class World:
     self.sky.reparentTo(render)
 
     #Sets the size of the sky sphere
-    self.sky.setScale(100)
+    self.sky.setScale(150)
 
     #Makes it just a black sphere if in testmode, otherwise loads the corresponding texture
     if self.testmode:
@@ -110,6 +160,10 @@ class World:
     else:
       self.sky_tex = loader.loadTexture("models/s.jpg")
       self.sky.setTexture(self.sky_tex, 1)
+    self.skyCollider = self.sky.attachNewNode(CollisionNode('skynode'))
+    self.skyCollider.node().addSolid(CollisionInvSphere(0, 0, 0, 1))
+    base.cTrav.addCollider(self.skyCollider, self.collisionHandler)
+
 
     #Exactly the same procedure as the sky sphere creation
     #The only difference is that a common sphere is used as the model
@@ -217,6 +271,39 @@ class World:
     for i in range(len(self.objects)):
       if self.objects[i].mass <= 1 and self.objects[i].mass > 0:
         self.objects[i].node.setPos(self.objects[i].node.getPos() + self.objects[i].vel)
+
+
+    #Draw red lines connection planets according to the caution level which can be changed
+    #with the keyboard. This ranges from drawing no lines at all to drawing lines connecting
+    #every planet. The main idea is to use the caution level as 1, which only connects
+    #planets that are way too close. Can be changed later for different approaches.
+    self.lines.reset()
+    if self.caution > 0:
+      lines = []
+      for i in range(len(self.objects)):
+        pf = Point3(100,100,100)
+        df = 100
+        for j in range(len(self.objects)):
+          if i != j:
+            d = (self.objects[i].node.getPos() - self.objects[j].node.getPos()).length()
+            if d < df:
+              pf = (self.objects[j].node.getPos())
+              df = d
+        if self.caution == 2:
+          lines.append((self.objects[i].node.getPos(),pf))
+        if (self.objects[i].node.getPos() - pf).length() < 20 and self.caution == 1:
+          lines.append((self.objects[i].node.getPos(),pf))
+        self.lines.drawLines(lines)
+        self.lines.create()
+    if self.caution == -1:
+      lines = []
+      for i in range(len(self.objects)):
+        for j in range(len(self.objects)):
+          lines.append((self.objects[i].node.getPos(),self.objects[j].node.getPos()))
+        self.lines.drawLines(lines)
+        self.lines.create()
+
+
     return task.again
 
 
@@ -236,9 +323,21 @@ class World:
           #Detaches its pandaNode so it won't be renderized anymore.
           entry.getIntoNodePath().getParent().detachNode()
           break
-      print "Collision: into",entry.getIntoNode().getName()
+      #print "Collision: into",entry.getIntoNode().getName()
     return task.again
 
+
+  def keyboardPress(self,status):
+    #Callback for key presses
+    #For now this only changes the caution level
+    if status == "a":
+      self.caution = 0
+    elif status == "s":
+      self.caution = 1
+    elif status == "d":
+      self.caution = 2
+    elif status == "w":
+      self.caution = -1
 
   def mouseClick(self,status):
     #This functions is the callback for a mouse click
@@ -247,7 +346,7 @@ class World:
     if base.mouseWatcherNode.hasMouse():
       #First we get the mouse position on the screen during the click
       mpos = base.mouseWatcherNode.getMouse()
-
+      
       #Initializes three variables that are going to be filled by panda functions
       pos3d = Point3() 
       nearPoint = Point3() 
@@ -280,7 +379,7 @@ class World:
           self.objects.append(Body(self.blackhole,7,Vec3(0,0,0),Vec3(0,0,0)))
 
         #This creates a while hole. Nothing more than a Body with negative mass.
-        if status == "test":
+        if status == "down2":
           self.whitehole = loader.loadModel("models/planet_sphere")
           if not self.testmode:
             self.whitehole_tex = loader.loadTexture("models/bh.jpg")
@@ -297,17 +396,12 @@ class World:
 
   def rotatePlanets(self):
     #This function just makes every Body rotate with a panda Interval function
-    #Still need to implement planet rotations according to their sizes (need astronomical refferences)
-    
-    self.day_period_sun = self.sun.hprInterval(20, Vec3(360, 0, 0))
-    #for i in range(self.n):
-    #  seed = random.random()
-    #  
-    #  self.day_period_planet[i] = self.planet[i].hprInterval(
-    #    ((seed+1) * self.dayscale), Vec3(360, 0, 0))
-    self.day_period_sun.loop()
-    #for i in range(self.n):
-    #  self.day_period_planet[i].loop()
+    self.day_period_object = [0]*(len(self.objects)-1)
+    self.sun_period = self.objects[0].node.hprInterval(20, Vec3(360, 0, 0))
+    self.sun_period.loop()
+    for i in range(len(self.objects)-1):
+      self.day_period_object[i] = self.objects[i+1].node.hprInterval(self.objects[i].mass*1500, Vec3(360, 0, 0))
+      self.day_period_object[i].loop()
 
 
   
