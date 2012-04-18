@@ -19,6 +19,32 @@ from pandac.PandaModules import *
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
 
+#TO BE IMPLEMENTED:
+
+#--- Animation ---
+#to add some effects as explosions, black hole suction, meteorite crashing and the like with Particle Panel
+
+#--- Sound ---
+#to add sound to all in-game events (explosions, alert beeps, etc)
+
+#---  Camera  ---
+#to lock  camera rotation around axis Y
+#to switch the camera controls, such as:
+#LEFT CLICK (rotation around Z axis) -> RIGHT CLICK, A and D keys
+#RIGHT CLICK (zoom) -> MOUSE WHEEL UP/DOWN
+
+#--- Interface ---
+#to add buttons and their respective callbacks to the lateral menu (self.menuRegion)
+#Planets' lifebars
+#Start Menu (optional)
+
+#---   AI   ---
+#"Smart Meteors": meteorites that calculates the angle to hit a planet so that such planet hits other one
+#Planets' Races (optional)
+
+#--- Others ---
+#
+
 class Body:
   #Wrapper of the pandaNode class to add extra attributes
   def __init__(self,obj,mass,vel,acel):
@@ -77,13 +103,15 @@ class World:
     myAspect2d.node().setMouseWatcher(base.mouseWatcherNode)
     imageObject = OnscreenImage(image = 'models/menu.jpg', scale =  (1,1,1), parent = myRender2d)
     
-
+    #Creates a line connecting planets when these are close enough to satisfy self.orbitscale.
+    #Different values of self.caution define how far lines start to appear,
+    #but will make more sense by the time others difficult levels get implemented
     self.caution = 0
     self.lines = LineNodePath(parent = render, thickness = 3.0, colorVec = Vec4(1, 0, 0, 1))
     self.sizescale = 1.6
     self.orbitscale = 10
     
-    #objects is the main array that keeps trace of all the Body type objects
+    #Objects is the main array that keeps trace of all the Body type objects
     self.objects = []
 
     #Unimportant parameters
@@ -127,7 +155,7 @@ class World:
     #taskMgr.add(self.refreshPlanets, 'refresh')
     taskMgr.doMethodLater(0.01, self.refreshPlanets, 'refresh')
 
-    #Initialization of several arrays (some are useless now, need futher checking)
+    #Initialization of several arrays (some are useless now, need further checking)
     self.orbit_period_planet = [0]*self.n
     self.day_period_planet = [0]*self.n
     self.planet = [0]*self.n
@@ -246,7 +274,7 @@ class World:
       #'a' corresponds to a sum-type variable to calculate the new acceleration
       a = Vec3(0,0,0)
 
-      #'j' is the Body that we are going to calculate its force interaction with 'i'
+      #'j' is the Body which force interaction with 'i' we are going to calculate
       for j in range(len(self.objects)):
     
         #A Body doesn't interact with itself
@@ -266,7 +294,7 @@ class World:
       #And its acceleration is now 'a'
       self.objects[i].acel = a
 
-    #Changes the object's position accordinly. The mass restriction is because black holes and
+    #Changes the object's position accordingly. The mass restriction is because black holes and
     #while holes aren't supposed to move at all.
     for i in range(len(self.objects)):
       if self.objects[i].mass <= 1 and self.objects[i].mass > 0:
@@ -275,8 +303,11 @@ class World:
 
     #Draw red lines connection planets according to the caution level which can be changed
     #with the keyboard. This ranges from drawing no lines at all to drawing lines connecting
-    #every planet. The main idea is to use the caution level as 1, which only connects
-    #planets that are way too close. Can be changed later for different approaches.
+    #every planet.
+    #Caution level -1: shows lines connecting all planets, one with each other;
+    #Caution level 0: turns the lines of connection off
+    #Caution level 1: 
+    #Caution level 2: 
     self.lines.reset()
     if self.caution > 0:
       lines = []
@@ -330,18 +361,18 @@ class World:
   def keyboardPress(self,status):
     #Callback for key presses
     #For now this only changes the caution level
-    if status == "a":
+    if status == "1":
       self.caution = 0
-    elif status == "s":
+    elif status == "2":
       self.caution = 1
-    elif status == "d":
+    elif status == "3":
       self.caution = 2
-    elif status == "w":
+    elif status == "'":
       self.caution = -1
 
   def mouseClick(self,status):
     #This functions is the callback for a mouse click
-    #All major skills are going to be modelated here
+    #All major skills (hazards) are going to be modelated here
 
     if base.mouseWatcherNode.hasMouse():
       #First we get the mouse position on the screen during the click
@@ -361,8 +392,8 @@ class World:
       #This is done by checking the intersection between the line
       #defined by the nearPoint and farPoint, and the plane itself.
       if self.plane.intersectsLine(pos3d, 
-          render.getRelativePoint(camera, nearPoint), 
-          render.getRelativePoint(camera, farPoint)):
+                                   render.getRelativePoint(camera, nearPoint), 
+                                   render.getRelativePoint(camera, farPoint)):
 
         #This creates a black hole. Same procedure as planets and sun creation.
         if status == "down":
