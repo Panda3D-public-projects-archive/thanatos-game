@@ -14,7 +14,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.1.5
+#VERSION 0.2.5
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -26,12 +26,6 @@ from pandac.PandaModules import *
 
 #--- Sound ---
 #to add sound to all in-game events (explosions, alert beeps, etc)
-
-#---  Camera  ---
-#to lock  camera rotation around axis Y
-#to switch the camera controls, such as:
-#LEFT CLICK (rotation around Z axis) -> RIGHT CLICK, A and D keys
-#RIGHT CLICK (zoom) -> MOUSE WHEEL UP/DOWN
 
 #--- Interface ---
 #to add buttons and their respective callbacks to the lateral menu (self.menuRegion)
@@ -55,6 +49,134 @@ class Body:
     #Both vel and acel are 3 dimensional vector objects of the Vec3 class
     self.vel = vel
     self.acel = acel
+    
+class CameraController(DirectObject):
+  '''Defines and controls the camera'''
+  def   __init__(self): 
+    base.disableMouse() 
+    self.setupVars() 
+    self.setupCamera() 
+    self.setupInput() 
+    self.setupTasks() 
+       
+  def setupVars(self):
+    '''Initialize vars values'''
+    self.initPitch = 10         #Anchor initial pitch (camera will start slighly from above)
+    self.initZoom = 250         #Camera's initial distance from anchor
+    self.zoomInLimit = 20       #Camera's minimum distance from anchor
+    self.zoomOutLimit = 600     #Camera's maximum distance from anchor
+    self.orbit = None 
+    
+  def setupCamera(self):
+    '''Define an anchor node which camera will follow
+       set camera and achor positions
+    '''
+    self.camAnchor = render.attachNewNode("Cam Anchor") 
+    base.camera.reparentTo(self.camAnchor)
+    base.camera.setPos(0, -self.initZoom, 0) 
+    base.camera.lookAt(self.camAnchor)
+    self.camAnchor.setP(-self.initPitch)
+       
+  def setupInput(self):
+    '''Define mouse callback functions'''
+    #Zoom functions
+    self.accept("wheel_up", self.setZoom, ['up']) 
+    self.accept("wheel_down", self.setZoom, ['down']) 
+    #Orbiting functions
+    self.accept("mouse3", self.setOrbit, [True]) 
+    self.accept("mouse3-up", self.setOrbit, [False]) 
+    
+  def setupTasks(self):
+    '''Add new task to be called every frame for camera orbiting'''
+    taskMgr.add(self.cameraOrbit, "Camera Orbit")
+
+  def setZoom(self, zoom):
+    '''Method that zoom ir or out the camera'''
+    y = base.camera.getY()  #Get camera position
+ 
+    #This block smooths the zoom movement by varying less if camera is closer
+    if y > -100.0:
+      delta = 5
+    elif y > -150:
+      delta = 10
+    elif y > -250.0:
+      delta = 20
+    else:
+      delta = 40
+      
+    if (zoom == 'up'):
+      newY = y + delta
+      #Verify if the new position respects the zoom in limit
+      if newY > -self.zoomInLimit: newY = -self.zoomInLimit
+    else:
+      newY = base.camera.getY() - delta
+      #Verify if the new position respects the zoom in limit
+      if newY < -self.zoomOutLimit: newY = -self.zoomOutLimit
+      
+    base.camera.setY(newY)  #Set new position
+    
+  def setOrbit(self, orbit):
+    '''Get the mouse position when clicked'''
+    if(orbit == True):
+      #Get windows size
+      props = base.win.getProperties() 
+      winX = props.getXSize()
+      winY = props.getYSize()
+      if base.mouseWatcherNode.hasMouse():
+        #Get mouse position when clicked
+        mX = base.mouseWatcherNode.getMouseX() 
+        mY = base.mouseWatcherNode.getMouseY()
+        #Get absolute mouse position on the screen
+        mPX = winX * ((mX+1)/2)
+        mPY = winY * ((-mY+1)/2) 
+      self.orbit = [[mX, mY], [mPX, mPY]]
+    else: 
+      self.orbit = None
+    
+  def cameraOrbit(self, task):
+    '''Task to move the camera around the anchor each frame'''
+    if(self.orbit != None): 
+      if base.mouseWatcherNode.hasMouse(): 
+        
+        #Get current mouse position
+        mpos = base.mouseWatcherNode.getMouse()
+        
+        #Move mouse so that it stays in the same position where he was clicked
+        base.win.movePointer(0, int(self.orbit[1][0] * 0.8), int(self.orbit[1][1])) 
+        
+        #Calculates the variation of the movement
+        deltaH = 90 * (mpos[0] - self.orbit[0][0]) 
+        deltaP = 90 * (mpos[1] - self.orbit[0][1]) 
+             
+        limit = .5 
+        
+        # These two blocks verify whether the variation is negligible and smooths the movement
+        if(-limit < deltaH and deltaH < limit): 
+          deltaH = 0 
+        elif(deltaH > 0): 
+          deltaH - limit 
+        elif(deltaH < 0): 
+          deltaH + limit 
+                
+        if(-limit < deltaP and deltaP < limit): 
+          deltaP = 0 
+        elif(deltaP > 0): 
+          deltaP - limit
+        elif(deltaP < 0): 
+          deltaP + limit 
+
+        #Set new heading and pitch for the anchor
+        newH = (self.camAnchor.getH() + -deltaH) 
+        newP = (self.camAnchor.getP() + deltaP)
+        #Don't let the camera pitch go beyond 90 degrees
+        if(newP < -90): newP = -90 
+        if(newP > 90): newP = 90 
+        
+        #Set the pitch
+        self.camAnchor.setHpr(newH, newP, 0)             
+          
+    return task.cont
+    
 
 class World:
   def __init__(self):
@@ -65,9 +187,6 @@ class World:
     self.mainRegion.setDimensions(0,0.8,0,1)
     base.mouseWatcherNode.setDisplayRegion(self.mainRegion)
     base.setBackgroundColor(0, 0, 0)
-    #base.disableMouse()
-    camera.setPos ( 100, 0, 100 )
-    camera.setHpr ( 0, -90, 0 )
     
     #Same procedure as above, but this is for the minimap
     self.minimapRegion = base.win.makeDisplayRegion(0.81, 0.99, 0.71, 0.98)
@@ -129,8 +248,8 @@ class World:
 
     #Selection of callback functions
     DO=DirectObject()
-    DO.accept('mouse1', self.mouseClick, ['down'])
-    DO.accept('mouse1-up', self.mouseClick, ['up'])
+    DO.accept('mouse1', self.leftMouseClick, ['down'])
+    DO.accept('mouse1-up', self.leftMouseClick, ['up'])
     DO.accept('a', self.keyboardPress, ['a'])
     DO.accept('s', self.keyboardPress, ['s'])
     DO.accept('d', self.keyboardPress, ['d'])
@@ -408,7 +527,9 @@ class World:
       self.skill = "bh"
     elif status == "x":
       self.skill = "wh"
-  def mouseClick(self,status):
+      
+      
+  def leftMouseClick(self,status):
     #This functions is the callback for a mouse click
     #All major skills (hazards) are going to be modelated here
 
@@ -476,4 +597,5 @@ class World:
 
   
 w = World()
+myCam = CameraController()
 run()
