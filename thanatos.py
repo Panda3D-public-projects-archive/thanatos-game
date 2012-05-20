@@ -9,35 +9,14 @@ import math
 from direct.directtools.DirectGeometry import LineNodePath
 from pandac.PandaModules import CollisionHandlerQueue, CollisionNode, CollisionSphere, CollisionTraverser, BitMask32, CollisionRay
 from direct.showbase.ShowBase import Plane, ShowBase, Vec3, Point3, CardMaker 
-
 from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.2.5
+#VERSION 0.2.6
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
-
-#TO BE IMPLEMENTED:
-
-#--- Animation ---
-#to add some effects as explosions, black hole suction, meteorite crashing and the like with Particle Panel
-
-#--- Sound ---
-#to add sound to all in-game events (explosions, alert beeps, etc)
-
-#--- Interface ---
-#to add buttons and their respective callbacks to the lateral menu (self.menuRegion)
-#Planets' lifebars
-#Start Menu (optional)
-
-#---   AI   ---
-#"Smart Meteors": meteorites that calculates the angle to hit a planet so that such planet hits other one
-#Planets' Races (optional)
-
-#--- Others ---
-#
 
 class Body:
   #Wrapper of the pandaNode class to add extra attributes
@@ -147,7 +126,6 @@ class CameraController(DirectObject):
         #Calculates the variation of the movement
         deltaH = 90 * (mpos[0] - self.orbit[0][0]) 
         deltaP = 90 * (mpos[1] - self.orbit[0][1]) 
-             
         limit = .5 
         
         # These two blocks verify whether the variation is negligible and smooths the movement
@@ -423,9 +401,6 @@ class World:
       if self.objects[i].mass <= 1 and self.objects[i].mass > 0:
         self.objects[i].node.setPos(self.objects[i].node.getPos() + self.objects[i].vel)
 
-
-
-
     #Does the previous calculation 30 times ahead, so the player can have a prediction on
     #the path each planet will follow.
     for i in range(len(self.objects)):
@@ -502,38 +477,34 @@ class World:
       entry = self.collisionHandler.getEntry(i)
       for j in range(len(self.objects)):
         #Compares the collided object's mass with every body mass in order to find which Body object collided
-        if entry.getIntoNodePath().getParent().getPos() == self.objects[j].node.getPos() and self.objects[j].mass <= 1 and self.objects[j].mass > 0:
+        if entry.getFromNodePath().getParent().getPos() == self.objects[j].node.getPos() and self.objects[j].mass <= 1 and self.objects[j].mass > 0:
           #Deletes the Body object from the main objects array, so it won't interact with other bodies anymore
           self.objects.pop(j)
           #Detaches its pandaNode so it won't be renderized anymore.
-          entry.getIntoNodePath().getParent().detachNode()
+          entry.getFromNodePath().getParent().detachNode()
           break
-      #print "Collision: into",entry.getIntoNode().getName()
     return task.again
 
 
   def keyboardPress(self,status):
     #Callback for key presses
     #For now this only changes the caution level
-    if status == "a":
-      self.caution = 0
-    elif status == "s":
-      self.caution = 1
-    elif status == "d":
-      self.caution = 2
-    elif status == "w":
-      self.caution = -1
-    elif status == "z":
-      self.skill = "bh"
-    elif status == "x":
-      self.skill = "wh"
-      
+    if status == "a": self.caution = 0
+    elif status == "s": self.caution = 1
+    elif status == "d": self.caution = 2
+    elif status == "w": self.caution = -1
+    elif status == "z": self.skill = "bh"
+    elif status == "x": self.skill = "wh"
       
   def leftMouseClick(self,status):
     #This functions is the callback for a mouse click
     #All major skills (hazards) are going to be modelated here
 
-    if base.mouseWatcherNode.hasMouse():
+    if base.mouseWatcherNode.hasMouse() and status == "up" and self.skill in ["bh","wh"]:
+      self.objects[-1].node.detachNode()
+      self.objects.pop(-1)
+
+    if base.mouseWatcherNode.hasMouse() and status == "down":
       #First we get the mouse position on the screen during the click
       mpos = base.mouseWatcherNode.getMouse()
       
@@ -555,34 +526,32 @@ class World:
                                    render.getRelativePoint(camera, farPoint)):
 
         #This creates a black hole. Same procedure as planets and sun creation.
-        if status == "down":
-          if self.skill == "bh":
-            self.blackhole = loader.loadModel("models/planet_sphere")
-            try:
-              self.blackhole_tex = loader.loadTexture("models/bh.jpg")
-              self.blackhole.setTexture(self.blackhole_tex, 1)
-            except: pass
-            self.blackhole.reparentTo(render)
-            self.blackhole.setPos(pos3d)
-            self.blackhole.setScale(2)
-            self.blackholeCollider = self.blackhole.attachNewNode(CollisionNode('bhnode'))
-            self.blackholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
-            base.cTrav.addCollider(self.blackholeCollider, self.collisionHandler)
-            self.objects.append(Body(self.blackhole,7,Vec3(0,0,0),Vec3(0,0,0)))
-          elif self.skill == "wh":
-            self.whitehole = loader.loadModel("models/planet_sphere")
-            try:
-              self.whitehole_tex = loader.loadTexture("models/bh.jpg")
-              self.whitehole.setTexture(self.whitehole_tex, 1)
-            except: pass
-            self.whitehole.reparentTo(render)
-            self.whitehole.setPos(pos3d)
-            self.whitehole.setScale(2)
-            self.whiteholeCollider = self.whitehole.attachNewNode(CollisionNode('bhnode'))
-            self.whiteholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
-            base.cTrav.addCollider(self.whiteholeCollider, self.collisionHandler)
-            self.objects.append(Body(self.whitehole,-3,Vec3(0,0,0),Vec3(0,0,0)))
-
+        if self.skill == "bh":
+          self.blackhole = loader.loadModel("models/planet_sphere")
+          try:
+            self.blackhole_tex = loader.loadTexture("models/bh.jpg")
+            self.blackhole.setTexture(self.blackhole_tex, 1)
+          except: pass
+          self.blackhole.reparentTo(render)
+          self.blackhole.setPos(pos3d)
+          self.blackhole.setScale(2)
+          self.blackholeCollider = self.blackhole.attachNewNode(CollisionNode('bhnode'))
+          self.blackholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+          base.cTrav.addCollider(self.blackholeCollider, self.collisionHandler)
+          self.objects.append(Body(self.blackhole,7,Vec3(0,0,0),Vec3(0,0,0)))
+        elif self.skill == "wh":
+          self.whitehole = loader.loadModel("models/planet_sphere")
+          try:
+            self.whitehole_tex = loader.loadTexture("models/bh.jpg")
+            self.whitehole.setTexture(self.whitehole_tex, 1)
+          except: pass
+          self.whitehole.reparentTo(render)
+          self.whitehole.setPos(pos3d)
+          self.whitehole.setScale(2)
+          self.whiteholeCollider = self.whitehole.attachNewNode(CollisionNode('bhnode'))
+          self.whiteholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+          base.cTrav.addCollider(self.whiteholeCollider, self.collisionHandler)
+          self.objects.append(Body(self.whitehole,-3,Vec3(0,0,0),Vec3(0,0,0)))
 
 
   def rotatePlanets(self):
