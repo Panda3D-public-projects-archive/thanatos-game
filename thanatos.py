@@ -13,7 +13,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.2.6
+#VERSION 0.2.7
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -204,6 +204,10 @@ class World:
     self.orbitlines = LineNodePath(parent = render, thickness = 3.0, colorVec = Vec4(0, 0, 1, 1))
     self.sizescale = 1.6
     self.orbitscale = 10
+
+    #Initialize parameters for the meteor creation routines
+    self.meteorcreation = False
+    self.meteorline = LineNodePath(parent = render, thickness = 3.0, colorVec = Vec4(1, 0, 0, 1))
     
     #Objects is the main array that keeps trace of all the Body type objects
     self.objects = []
@@ -234,6 +238,7 @@ class World:
     DO.accept('w', self.keyboardPress, ['w'])
     DO.accept('z', self.keyboardPress, ['z'])
     DO.accept('x', self.keyboardPress, ['x'])
+    DO.accept('c', self.keyboardPress, ['c'])
     #Creation of the plane defined by the solar system (normal (0,0,1) and point(0,0,0))
     self.plane = Plane(Vec3(0, 0, 1), Point3(0, 0, 0))
 
@@ -430,10 +435,28 @@ class World:
       for j in range(30):
         try:
           orbitlines.append((self.objects[i].predPos[j],self.objects[i].predPos[j+1]))
-        except:
-          pass
+        except: pass
     self.orbitlines.drawLines(orbitlines)
     self.orbitlines.create()
+
+
+    #Draw a line to indicate the direction and speed of the meteor creation
+    self.meteorline.reset()
+    meteorline = []
+    if self.meteorcreation == True:
+      if base.mouseWatcherNode.hasMouse():
+        mpos = base.mouseWatcherNode.getMouse()
+        pos3d = Point3() 
+        nearPoint = Point3() 
+        farPoint = Point3()
+        base.camLens.extrude(mpos, nearPoint, farPoint)
+        if self.plane.intersectsLine(pos3d, 
+                                   render.getRelativePoint(camera, nearPoint), 
+                                   render.getRelativePoint(camera, farPoint)):
+          self.meteorvector[1] = pos3d
+          meteorline.append((self.meteorvector[0],self.meteorvector[1]))
+      self.meteorline.drawLines(meteorline)
+      self.meteorline.create()
 
 
     #Draw red lines connection planets according to the caution level which can be changed
@@ -495,16 +518,34 @@ class World:
     elif status == "w": self.caution = -1
     elif status == "z": self.skill = "bh"
     elif status == "x": self.skill = "wh"
+    elif status == "c": self.skill = "mt"
       
   def leftMouseClick(self,status):
     #This functions is the callback for a mouse click
     #All major skills (hazards) are going to be modelated here
 
-    if base.mouseWatcherNode.hasMouse() and status == "up" and self.skill in ["bh","wh"]:
-      self.objects[-1].node.detachNode()
-      self.objects.pop(-1)
+    if base.mouseWatcherNode.hasMouse() and status == "up":
+      if self.skill in ["bh","wh"]:
+        self.objects[-1].node.detachNode()
+        self.objects.pop(-1)
+      if self.skill == "mt":
+        self.meteorcreation = False
+        self.meteor = loader.loadModel("models/planet_sphere")
+        try:
+          self.meteor_tex = loader.loadTexture("models/bh.jpg")
+          self.meteor.setTexture(self.meteor_tex, 1)
+        except: pass
+        self.meteor.reparentTo(render)
+        self.meteor.setPos(self.meteorvector[0])
+        self.meteor.setScale(0.2)
+        self.meteorCollider = self.meteor.attachNewNode(CollisionNode('mtnode'))
+        self.meteorCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+        base.cTrav.addCollider(self.meteorCollider, self.collisionHandler)
+        self.objects.append(Body(self.meteor,0.001,(self.meteorvector[0]-self.meteorvector[1])/10.0,Vec3(0,0,0)))
 
-    if base.mouseWatcherNode.hasMouse() and status == "down":
+          
+
+    elif base.mouseWatcherNode.hasMouse() and status == "down":
       #First we get the mouse position on the screen during the click
       mpos = base.mouseWatcherNode.getMouse()
       
@@ -552,6 +593,9 @@ class World:
           self.whiteholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
           base.cTrav.addCollider(self.whiteholeCollider, self.collisionHandler)
           self.objects.append(Body(self.whitehole,-3,Vec3(0,0,0),Vec3(0,0,0)))
+        elif self.skill == "mt":
+          self.meteorcreation = True
+          self.meteorvector = [pos3d,pos3d]
 
 
   def rotatePlanets(self):
