@@ -13,7 +13,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.2.7
+#VERSION 0.2.8
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -498,15 +498,33 @@ class World:
     
     for i in range(self.collisionHandler.getNumEntries()):
       entry = self.collisionHandler.getEntry(i)
-      for j in range(len(self.objects)):
-        #Compares the collided object's mass with every body mass in order to find which Body object collided
-        if entry.getFromNodePath().getParent().getPos() == self.objects[j].node.getPos() and self.objects[j].mass <= 1 and self.objects[j].mass > 0:
-          #Deletes the Body object from the main objects array, so it won't interact with other bodies anymore
-          self.objects.pop(j)
-          #Detaches its pandaNode so it won't be renderized anymore.
-          entry.getFromNodePath().getParent().detachNode()
-          break
+      
+      if "skynode" in entry.getIntoNodePath().getName() or "sunnode" in entry.getIntoNodePath().getName():
+        for j in range(len(self.objects)):
+          if entry.getFromNodePath().getParent().getPos() == self.objects[j].node.getPos():
+            self.objects.pop(j)
+            entry.getFromNodePath().getParent().detachNode()
+            break
+      if "planetnode" in entry.getFromNodePath().getName() and "planetnode" in entry.getIntoNodePath().getName():
+        for j in range(len(self.objects)):
+          if entry.getFromNodePath().getParent().getPos() == self.objects[j].node.getPos():
+            self.objects.pop(j)
+            entry.getFromNodePath().getParent().detachNode()
+            break
+        for j in range(len(self.objects)):
+          if entry.getIntoNodePath().getParent().getPos() == self.objects[j].node.getPos():
+            self.objects.pop(j)
+            entry.getIntoNodePath().getParent().detachNode()
+            break
+      if "mtnode" in entry.getFromNodePath().getName() and "planetnode" in entry.getIntoNodePath().getName():
+        for j in range(len(self.objects)):
+          if entry.getFromNodePath().getParent().getPos() == self.objects[j].node.getPos():
+            self.objects.pop(j)
+            entry.getFromNodePath().getParent().detachNode()
+            break
     return task.again
+
+
 
 
   def keyboardPress(self,status):
