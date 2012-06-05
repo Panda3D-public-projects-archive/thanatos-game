@@ -13,7 +13,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.2.8
+#VERSION 0.2.9
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -517,10 +517,16 @@ class World:
             entry.getIntoNodePath().getParent().detachNode()
             break
       if "mtnode" in entry.getFromNodePath().getName() and "planetnode" in entry.getIntoNodePath().getName():
+        mtvel = Vec3(0,0,0)
         for j in range(len(self.objects)):
           if entry.getFromNodePath().getParent().getPos() == self.objects[j].node.getPos():
-            self.objects.pop(j)
+            mt = self.objects.pop(j)
+            mtvel = mt.vel*mt.mass
             entry.getFromNodePath().getParent().detachNode()
+            break
+        for j in range(len(self.objects)):
+          if entry.getIntoNodePath().getParent().getPos() == self.objects[j].node.getPos():
+            self.objects[j].vel += mtvel/self.objects[j].mass
             break
     return task.again
 
