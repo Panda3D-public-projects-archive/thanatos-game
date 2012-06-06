@@ -209,6 +209,9 @@ class World:
     self.meteorcreation = False
     self.meteorline = LineNodePath(parent = render, thickness = 3.0, colorVec = Vec4(1, 0, 0, 1))
     
+    #Define game pace
+    self.pace = 1
+    
     #Objects is the main array that keeps trace of all the Body type objects
     self.objects = []
 
@@ -239,6 +242,8 @@ class World:
     DO.accept('z', self.keyboardPress, ['z'])
     DO.accept('x', self.keyboardPress, ['x'])
     DO.accept('c', self.keyboardPress, ['c'])
+    DO.accept('ctrl', self.keyboadPress, ['ctrl'])
+    DO.accept('shift', self.keyboadPress, ['shift'])
     #Creation of the plane defined by the solar system (normal (0,0,1) and point(0,0,0))
     self.plane = Plane(Vec3(0, 0, 1), Point3(0, 0, 0))
 
@@ -396,9 +401,9 @@ class World:
           vec /= (self.objects[i].node.getPos() - self.objects[j].node.getPos()).lengthSquared()
           a += vec
       #'i' object's velocity is added by 'a'
-      self.objects[i].vel = self.objects[i].vel + a
+      self.objects[i].vel = (self.objects[i].vel + a) * self.pace
       #And its acceleration is now 'a'
-      self.objects[i].acel = a
+      self.objects[i].acel = a * (self.pace^2)
 
     #Changes the object's position accordingly. The mass restriction is because black holes and
     #while holes aren't supposed to move at all.
@@ -422,8 +427,8 @@ class World:
             vec *= self.objects[j].mass
             vec /= (self.objects[i].predPos[-1] - self.objects[j].predPos[-1]).lengthSquared()
             a += vec
-        self.objects[i].predVel = self.objects[i].predVel + a
-        self.objects[i].predAcel = a
+        self.objects[i].predVel = (self.objects[i].predVel + a) * self.pace
+        self.objects[i].predAcel = a * (self.pace^2)
         if self.objects[i].mass <= 1 and self.objects[i].mass > 0:
           self.objects[i].predPos.append(self.objects[i].predPos[-1] + self.objects[i].predVel)
 
@@ -543,6 +548,8 @@ class World:
     elif status == "z": self.skill = "bh"
     elif status == "x": self.skill = "wh"
     elif status == "c": self.skill = "mt"
+    elif status == "ctrl": self.skill = "sp"
+    elif status == "shift":self.skill = "fp"
       
   def leftMouseClick(self,status):
     #This functions is the callback for a mouse click
@@ -566,7 +573,10 @@ class World:
         self.meteorCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
         base.cTrav.addCollider(self.meteorCollider, self.collisionHandler)
         self.objects.append(Body(self.meteor,0.001,(self.meteorvector[0]-self.meteorvector[1])/10.0,Vec3(0,0,0)))
-
+      if self.skill == "sp":
+        self.pace /= 4
+      if self.skill == "fp":
+        self.pace *= 4
           
 
     elif base.mouseWatcherNode.hasMouse() and status == "down":
