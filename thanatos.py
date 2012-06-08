@@ -13,7 +13,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.3.1
+#VERSION 0.3.2
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -42,7 +42,7 @@ class CameraController(DirectObject):
     '''Initialize vars values'''
     self.initPitch = 10         #Anchor initial pitch (camera will start slighly from above)
     self.initZoom = 250         #Camera's initial distance from anchor
-    self.zoomInLimit = 20       #Camera's minimum distance from anchor
+    self.zoomInLimit = 40       #Camera's minimum distance from anchor
     self.zoomOutLimit = 600     #Camera's maximum distance from anchor
     self.orbit = None 
     
@@ -74,14 +74,22 @@ class CameraController(DirectObject):
     y = base.camera.getY()  #Get camera position
  
     #This block smooths the zoom movement by varying less if camera is closer
-    if y > -100.0:
-      delta = 5
+    if y > -60.0:
+      delta = 1
+    elif y > -90:
+      delta = 2
+    elif y > -120:
+      delta = 4
     elif y > -150:
-      delta = 10
+      delta = 6
+    elif y > -180:
+      delta = 8
     elif y > -250.0:
-      delta = 20
+      delta = 12
     else:
-      delta = 40
+      delta = 20
+    
+    print y
       
     if (zoom == 'up'):
       newY = y + delta
@@ -120,13 +128,13 @@ class CameraController(DirectObject):
         #Get current mouse position
         mpos = base.mouseWatcherNode.getMouse()
         
-        #Move mouse so that it stays in the same position where he was clicked
-        base.win.movePointer(0, int(self.orbit[1][0] * 0.8), int(self.orbit[1][1])) 
-        
         #Calculates the variation of the movement
         deltaH = 90 * (mpos[0] - self.orbit[0][0]) 
         deltaP = 90 * (mpos[1] - self.orbit[0][1]) 
         limit = .5 
+        
+        #Set the new mouse position for next task
+        self.orbit[0] = [mpos[0], mpos[1]]
         
         # These two blocks verify whether the variation is negligible and smooths the movement
         if(-limit < deltaH and deltaH < limit): 
@@ -137,7 +145,7 @@ class CameraController(DirectObject):
           deltaH + limit 
                 
         if(-limit < deltaP and deltaP < limit): 
-          deltaP = 0 
+          deltaP = 0
         elif(deltaP > 0): 
           deltaP - limit
         elif(deltaP < 0): 
@@ -148,7 +156,7 @@ class CameraController(DirectObject):
         newP = (self.camAnchor.getP() + deltaP)
         #Don't let the camera pitch go beyond 90 degrees
         if(newP < -90): newP = -90 
-        if(newP > 90): newP = 90 
+        if(newP > 0): newP = 0
         
         #Set the pitch
         self.camAnchor.setHpr(newH, newP, 0)             
