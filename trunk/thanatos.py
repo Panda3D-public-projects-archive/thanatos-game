@@ -13,7 +13,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.2.9
+#VERSION 0.3.0
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -242,8 +242,8 @@ class World:
     DO.accept('z', self.keyboardPress, ['z'])
     DO.accept('x', self.keyboardPress, ['x'])
     DO.accept('c', self.keyboardPress, ['c'])
-    DO.accept('ctrl', self.keyboadPress, ['ctrl'])
-    DO.accept('shift', self.keyboadPress, ['shift'])
+    DO.accept('control', self.keyboardPress, ['control'])
+    DO.accept('shift', self.keyboardPress, ['shift'])
     #Creation of the plane defined by the solar system (normal (0,0,1) and point(0,0,0))
     self.plane = Plane(Vec3(0, 0, 1), Point3(0, 0, 0))
 
@@ -401,14 +401,14 @@ class World:
           vec /= (self.objects[i].node.getPos() - self.objects[j].node.getPos()).lengthSquared()
           a += vec
       #'i' object's velocity is added by 'a'
-      self.objects[i].vel = (self.objects[i].vel + a) * self.pace
+      self.objects[i].vel = self.objects[i].vel + a
       #And its acceleration is now 'a'
-      self.objects[i].acel = a * (self.pace^2)
+      self.objects[i].acel = a
 
     #Changes the object's position accordingly. The mass restriction is because black holes and
     #while holes aren't supposed to move at all.
     for i in range(len(self.objects)):
-      if self.objects[i].mass <= 1 and self.objects[i].mass > 0:
+      if self.objects[i].mass < 1 and self.objects[i].mass > 0:
         self.objects[i].node.setPos(self.objects[i].node.getPos() + self.objects[i].vel)
 
     #Does the previous calculation 30 times ahead, so the player can have a prediction on
@@ -428,7 +428,7 @@ class World:
             vec /= (self.objects[i].predPos[-1] - self.objects[j].predPos[-1]).lengthSquared()
             a += vec
         self.objects[i].predVel = (self.objects[i].predVel + a) * self.pace
-        self.objects[i].predAcel = a * (self.pace^2)
+        self.objects[i].predAcel = a * (self.pace**2)
         if self.objects[i].mass <= 1 and self.objects[i].mass > 0:
           self.objects[i].predPos.append(self.objects[i].predPos[-1] + self.objects[i].predVel)
 
@@ -548,8 +548,8 @@ class World:
     elif status == "z": self.skill = "bh"
     elif status == "x": self.skill = "wh"
     elif status == "c": self.skill = "mt"
-    elif status == "ctrl": self.skill = "sp"
-    elif status == "shift":self.skill = "fp"
+    elif status == "control": self.skill = "sp"
+    elif status == "shift": self.skill = "fp"
       
   def leftMouseClick(self,status):
     #This functions is the callback for a mouse click
@@ -560,23 +560,24 @@ class World:
         self.objects[-1].node.detachNode()
         self.objects.pop(-1)
       if self.skill == "mt":
-        self.meteorcreation = False
-        self.meteor = loader.loadModel("models/planet_sphere")
-        try:
-          self.meteor_tex = loader.loadTexture("models/bh.jpg")
-          self.meteor.setTexture(self.meteor_tex, 1)
-        except: pass
-        self.meteor.reparentTo(render)
-        self.meteor.setPos(self.meteorvector[0])
-        self.meteor.setScale(0.2)
-        self.meteorCollider = self.meteor.attachNewNode(CollisionNode('mtnode'))
-        self.meteorCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
-        base.cTrav.addCollider(self.meteorCollider, self.collisionHandler)
-        self.objects.append(Body(self.meteor,0.001,(self.meteorvector[0]-self.meteorvector[1])/10.0,Vec3(0,0,0)))
+        if "planet" in self.objects[-1].node.getChild(1).getName():
+          self.meteorcreation = False
+          self.meteor = loader.loadModel("models/planet_sphere")
+          try:
+            self.meteor_tex = loader.loadTexture("models/bh.jpg")
+            self.meteor.setTexture(self.meteor_tex, 1)
+          except: pass
+          self.meteor.reparentTo(render)
+          self.meteor.setPos(self.meteorvector[0])
+          self.meteor.setScale(0.2)
+          self.meteorCollider = self.meteor.attachNewNode(CollisionNode('mtnode'))
+          self.meteorCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+          base.cTrav.addCollider(self.meteorCollider, self.collisionHandler)
+          self.objects.append(Body(self.meteor,0.001,(self.meteorvector[0]-self.meteorvector[1])/10.0,Vec3(0,0,0)))
       if self.skill == "sp":
-        self.pace /= 4
+        self.pace = 0.9
       if self.skill == "fp":
-        self.pace *= 4
+        self.pace = 1.1
           
 
     elif base.mouseWatcherNode.hasMouse() and status == "down":
@@ -628,8 +629,9 @@ class World:
           base.cTrav.addCollider(self.whiteholeCollider, self.collisionHandler)
           self.objects.append(Body(self.whitehole,-3,Vec3(0,0,0),Vec3(0,0,0)))
         elif self.skill == "mt":
-          self.meteorcreation = True
-          self.meteorvector = [pos3d,pos3d]
+          if "planet" in self.objects[-1].node.getChild(1).getName():
+            self.meteorcreation = True
+            self.meteorvector = [pos3d,pos3d]
 
 
   def rotatePlanets(self):
