@@ -13,7 +13,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.3.0
+#VERSION 0.3.1
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -211,6 +211,7 @@ class World:
     
     #Define game pace
     self.pace = 1
+    self.slow = False
     
     #Objects is the main array that keeps trace of all the Body type objects
     self.objects = []
@@ -242,8 +243,8 @@ class World:
     DO.accept('z', self.keyboardPress, ['z'])
     DO.accept('x', self.keyboardPress, ['x'])
     DO.accept('c', self.keyboardPress, ['c'])
-    DO.accept('control', self.keyboardPress, ['control'])
-    DO.accept('shift', self.keyboardPress, ['shift'])
+    DO.accept('space-up', self.keyboardPress, ['space-up'])
+    DO.accept('space', self.keyboardPress, ['space-down'])
     #Creation of the plane defined by the solar system (normal (0,0,1) and point(0,0,0))
     self.plane = Plane(Vec3(0, 0, 1), Point3(0, 0, 0))
 
@@ -379,6 +380,12 @@ class World:
     #The acceleration one body applies to another is given by
     #the equation 'a = G*M/(r^2). But of course we just ignore the Gravitational constant
 
+    if self.slow == True and self.pace > 0.2:
+      self.pace = self.pace - 0.02
+    elif self.pace < 1:
+      self.pace += 0.02
+
+
     #'i' is the Body that we are calculating its accel and vel for
     for i in range(len(self.objects)):
 
@@ -401,7 +408,7 @@ class World:
           vec /= (self.objects[i].node.getPos() - self.objects[j].node.getPos()).lengthSquared()
           a += vec
       #'i' object's velocity is added by 'a'
-      self.objects[i].vel = self.objects[i].vel + a
+      self.objects[i].vel = self.objects[i].vel + a * self.pace
       #And its acceleration is now 'a'
       self.objects[i].acel = a
 
@@ -409,7 +416,7 @@ class World:
     #while holes aren't supposed to move at all.
     for i in range(len(self.objects)):
       if self.objects[i].mass < 1 and self.objects[i].mass > 0:
-        self.objects[i].node.setPos(self.objects[i].node.getPos() + self.objects[i].vel)
+        self.objects[i].node.setPos(self.objects[i].node.getPos() + self.objects[i].vel *self.pace)
 
     #Does the previous calculation 30 times ahead, so the player can have a prediction on
     #the path each planet will follow.
@@ -427,10 +434,10 @@ class World:
             vec *= self.objects[j].mass
             vec /= (self.objects[i].predPos[-1] - self.objects[j].predPos[-1]).lengthSquared()
             a += vec
-        self.objects[i].predVel = (self.objects[i].predVel + a) * self.pace
-        self.objects[i].predAcel = a * (self.pace**2)
-        if self.objects[i].mass <= 1 and self.objects[i].mass > 0:
-          self.objects[i].predPos.append(self.objects[i].predPos[-1] + self.objects[i].predVel)
+        self.objects[i].predVel = self.objects[i].predVel + a* 5
+        self.objects[i].predAcel = a
+        if self.objects[i].mass < 1 and self.objects[i].mass > 0:
+          self.objects[i].predPos.append(self.objects[i].predPos[-1] + self.objects[i].predVel * 5)
 
     #Draw blue lines to show the predicted path for each planet.
     self.lines.reset()
@@ -537,7 +544,6 @@ class World:
 
 
 
-
   def keyboardPress(self,status):
     #Callback for key presses
     #For now this only changes the caution level
@@ -548,9 +554,9 @@ class World:
     elif status == "z": self.skill = "bh"
     elif status == "x": self.skill = "wh"
     elif status == "c": self.skill = "mt"
-    elif status == "control": self.skill = "sp"
-    elif status == "shift": self.skill = "fp"
-      
+    elif status == "space-up": self.slow = False
+    elif status == "space-down": self.slow = True
+    
   def leftMouseClick(self,status):
     #This functions is the callback for a mouse click
     #All major skills (hazards) are going to be modelated here
@@ -574,11 +580,6 @@ class World:
           self.meteorCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
           base.cTrav.addCollider(self.meteorCollider, self.collisionHandler)
           self.objects.append(Body(self.meteor,0.001,(self.meteorvector[0]-self.meteorvector[1])/10.0,Vec3(0,0,0)))
-      if self.skill == "sp":
-        self.pace = 0.9
-      if self.skill == "fp":
-        self.pace = 1.1
-          
 
     elif base.mouseWatcherNode.hasMouse() and status == "down":
       #First we get the mouse position on the screen during the click
