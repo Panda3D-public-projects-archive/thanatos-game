@@ -13,7 +13,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.4.3
+#VERSION 0.4.4
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -225,7 +225,6 @@ class World:
     self.holes = []
     self.nholes = 2
     self.meteorcreated = False
-    self.start = True
     
     #Objects is the main array that keeps trace of all the Body type objects
     self.objects = []
@@ -342,6 +341,15 @@ class World:
     #Appends the sun Body object with mass 1 and zero velocity and acceleration
     self.objects.append(Body(self.sun,1,Vec3(0,0,0),Vec3(0,0,0)))
 
+    #Creates a dummy node to predict the path of a to-be-created meteor
+    
+    self.dummy = NodePath("dummy")
+    self.dummy.reparentTo(render)
+    self.dummy.setPos(Point3(10,10,0))
+    self.dummy = Body(self.dummy,0,Vec3(0,0,0),Vec3(0,0,0))
+    self.objects.append(self.dummy)
+    
+
     #Same procedure as the sun creation, but with random textures, sizes and orbit radius.
     for i in range(self.n):
       self.planet = loader.loadModel("models/planet_sphere")
@@ -354,7 +362,7 @@ class World:
       #Two seeds are created randomly, one for the X pos and size, the other for the Y pos
       seed = random.random()
       seed2 = random.random()
-      self.planet.setPos(( (i+1) * self.orbitscale, 0, 0))
+      self.planet.setPos(Point3((i+1) * self.orbitscale, 0, 0))
       #self.planet.setPos( (10*(seed-0.5) * self.orbitscale, 10*(seed2-0.5) * self.orbitscale, 0))
       self.planet.setScale((seed+0.3) * self.sizescale)
       self.planetCollider = self.planet.attachNewNode(CollisionNode('planetnode%d'%i))
@@ -369,7 +377,7 @@ class World:
     #all masses are chosen arbitrarily.
     for i in range(len(self.objects)):
       #Ignores the sun, since it starts with zero acceleration and velocity
-      if i != 0:
+      if i != 0 and self.objects[i].node.getName() != "dummy":
         #Gets the vector from the planet 'i' to the sun (vts = vector to sun)
         vts = self.objects[0].node.getPos() - self.objects[i].node.getPos()
         r = vts.length()
@@ -389,16 +397,20 @@ class World:
       #Every object starts with zero acceleration
       self.objects[i].acel = Vec3(0,0,0)
 
+
+
   def refreshPlanets(self,task):
     #This function is responsible for calculating the acceleration and velocity of
     #every Body, and then changing its position accordingly.
     #The acceleration one body applies to another is given by
     #the equation 'a = G*M/(r^2). But of course we just ignore the Gravitational constant
 
+    #Slows the time or turns it a little back to normal if the player is holding space
     if self.slow == True and self.pace > 0.2:
       self.pace = self.pace - 0.02
     elif self.pace < 1:
       self.pace += 0.02
+
 
 
     #'i' is the Body that we are calculating its accel and vel for
@@ -422,10 +434,13 @@ class World:
           #Divides it by the square of the distance between the two bodies ('r^2' in the equation)
           vec /= (self.objects[i].node.getPos() - self.objects[j].node.getPos()).lengthSquared()
           a += vec
-      #'i' object's velocity is added by 'a'
-      self.objects[i].vel = self.objects[i].vel + a * self.pace
-      #And its acceleration is now 'a'
-      self.objects[i].acel = a
+          
+      #Non-moving objects shouldn't have their speeds or accelerations changed
+      if 0 < self.objects[i].mass < 1:
+        #'i' object's velocity is added by 'a'
+        self.objects[i].vel = self.objects[i].vel + a * self.pace
+        #And its acceleration is now 'a'
+        self.objects[i].acel = a
 
     #Changes the object's position accordingly. The mass restriction is because black holes,
     #while holes and worm holes aren't supposed to move at all.
@@ -450,13 +465,17 @@ class World:
             a += vec
         self.objects[i].predVel = self.objects[i].predVel + a* 5
         self.objects[i].predAcel = a
-        if self.objects[i].mass < 1 and self.objects[i].mass > 0:
+        if 0 < self.objects[i].mass < 1 or self.objects[i].node.getName() == "activedummy": 
           self.objects[i].predPos.append(self.objects[i].predPos[-1] + self.objects[i].predVel * 5)
 
+
+
+    #Draw lines showing the prediction of each planet's path
+    #This is done by the use of line segments with increasing alpha
     self.orbitsegnode.removeNode()
     self.orbitlines.reset()
     for i in range(len(self.objects)):
-      if 0 < self.objects[i].mass < 1:
+      if 0 < self.objects[i].mass < 1  or self.objects[i].node.getName() == "activedummy":
         self.orbitlines.moveTo(self.objects[i].predPos[0])
         for j in range(1,30):
           self.orbitlines.drawTo(self.objects[i].predPos[j+1])
@@ -464,14 +483,13 @@ class World:
     self.orbitsegnode.setTransparency(True)
     segs = 0
     for i in range(len(self.objects)):
-      if 0 < self.objects[i].mass < 1:
+      if 0 < self.objects[i].mass < 1  or self.objects[i].node.getName() == "activedummy":
         alpha = 0
         for j in range(30):
           self.orbitlines.setVertexColor(segs*30+j,0.13,0.41,0.55,1-alpha)
           alpha += 0.02
         segs += 1
         
-
 
     #Draw a line to indicate the direction and speed of the meteor creation
     self.meteorline.reset()
@@ -488,6 +506,7 @@ class World:
                                    render.getRelativePoint(camera, farPoint)):
           self.meteorvector[1] = pos3d
           meteorline.append((self.meteorvector[0],self.meteorvector[1]))
+      self.dummy.vel = (self.meteorvector[0]-self.meteorvector[1])/30.0
       self.meteorline.drawLines(meteorline)
       self.meteorline.create()
 
@@ -593,6 +612,7 @@ class World:
         self.objects[-1].node.detachNode()
         self.objects.pop(-1)
       if self.skill == "mt" and not self.meteorcreated and self.meteorcreation:
+        self.dummy.node.setName("dummy")
         self.meteorcreated = True
         self.meteorcreation = False
         self.meteor = loader.loadModel("models/planet_sphere")
@@ -671,12 +691,15 @@ class World:
           self.holes.append(self.wormhole)
         elif self.skill == "mt":
           if not self.meteorcreated and self.holes:
+            self.dummy.node.setName("activedummy")
             start = None
             for i in self.holes:
               if not start: start = i.getPos()
               elif (pos3d - i.getPos()).length() < (pos3d - start).length(): start = i.getPos()
+            self.dummy.node.setPos(start+Vec3(0.1,0,0))
             self.meteorcreation = True
             self.meteorvector = [start,pos3d]
+            self.dummy.vel = (self.meteorvector[0]-self.meteorvector[1])/30.0
 
 
   def rotatePlanets(self):
