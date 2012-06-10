@@ -13,7 +13,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.3.2
+#VERSION 0.4.0
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -88,8 +88,6 @@ class CameraController(DirectObject):
       delta = 12
     else:
       delta = 20
-    
-    print y
       
     if (zoom == 'up'):
       newY = y + delta
@@ -220,6 +218,9 @@ class World:
     #Define game pace
     self.pace = 1
     self.slow = False
+    self.holes = []
+    self.nholes = 2
+    self.meteorcreated = False
     
     #Objects is the main array that keeps trace of all the Body type objects
     self.objects = []
@@ -251,6 +252,7 @@ class World:
     DO.accept('z', self.keyboardPress, ['z'])
     DO.accept('x', self.keyboardPress, ['x'])
     DO.accept('c', self.keyboardPress, ['c'])
+    DO.accept('v', self.keyboardPress, ['v'])
     DO.accept('space-up', self.keyboardPress, ['space-up'])
     DO.accept('space', self.keyboardPress, ['space-down'])
     #Creation of the plane defined by the solar system (normal (0,0,1) and point(0,0,0))
@@ -420,12 +422,11 @@ class World:
       #And its acceleration is now 'a'
       self.objects[i].acel = a
 
-    #Changes the object's position accordingly. The mass restriction is because black holes and
-    #while holes aren't supposed to move at all.
+    #Changes the object's position accordingly. The mass restriction is because black holes,
+    #while holes and worm holes aren't supposed to move at all.
     for i in range(len(self.objects)):
-      if self.objects[i].mass < 1 and self.objects[i].mass > 0:
+      if 0 < self.objects[i].mass < 1:
         self.objects[i].node.setPos(self.objects[i].node.getPos() + self.objects[i].vel *self.pace)
-
     #Does the previous calculation 30 times ahead, so the player can have a prediction on
     #the path each planet will follow.
     for i in range(len(self.objects)):
@@ -515,17 +516,21 @@ class World:
 
     #Puts every collision in the collisionHandler.getEntry() list
     self.collisionHandler.sortEntries()
-    
+
     for i in range(self.collisionHandler.getNumEntries()):
       entry = self.collisionHandler.getEntry(i)
-      
-      if "skynode" in entry.getIntoNodePath().getName() or "sunnode" in entry.getIntoNodePath().getName():
+      fromname = entry.getFromNodePath().getName()
+      intoname = entry.getIntoNodePath().getName()
+      anyname = fromname + intoname
+      if  "mtnode" in anyname:
+        self.meteorcreated = False
+      if intoname in "skynode,sunnode,bhnode,whnode,holenode" and fromname not in "skynode,sunnode,bhnode,whnode,holenode":
         for j in range(len(self.objects)):
           if entry.getFromNodePath().getParent().getPos() == self.objects[j].node.getPos():
             self.objects.pop(j)
             entry.getFromNodePath().getParent().detachNode()
             break
-      if "planetnode" in entry.getFromNodePath().getName() and "planetnode" in entry.getIntoNodePath().getName():
+      if "planetnode" in fromname and "planetnode" in intoname:
         for j in range(len(self.objects)):
           if entry.getFromNodePath().getParent().getPos() == self.objects[j].node.getPos():
             self.objects.pop(j)
@@ -536,7 +541,7 @@ class World:
             self.objects.pop(j)
             entry.getIntoNodePath().getParent().detachNode()
             break
-      if "mtnode" in entry.getFromNodePath().getName() and "planetnode" in entry.getIntoNodePath().getName():
+      if "mtnode" in fromname and "planetnode" in intoname:
         mtvel = Vec3(0,0,0)
         for j in range(len(self.objects)):
           if entry.getFromNodePath().getParent().getPos() == self.objects[j].node.getPos():
@@ -548,6 +553,7 @@ class World:
           if entry.getIntoNodePath().getParent().getPos() == self.objects[j].node.getPos():
             self.objects[j].vel += mtvel/self.objects[j].mass
             break
+    
     return task.again
 
 
@@ -562,6 +568,7 @@ class World:
     elif status == "z": self.skill = "bh"
     elif status == "x": self.skill = "wh"
     elif status == "c": self.skill = "mt"
+    elif status == "v": self.skill = "hole"
     elif status == "space-up": self.slow = False
     elif status == "space-down": self.slow = True
     
@@ -573,21 +580,23 @@ class World:
       if self.skill in ["bh","wh"]:
         self.objects[-1].node.detachNode()
         self.objects.pop(-1)
-      if self.skill == "mt":
-        if "planet" in self.objects[-1].node.getChild(1).getName():
-          self.meteorcreation = False
-          self.meteor = loader.loadModel("models/planet_sphere")
-          try:
-            self.meteor_tex = loader.loadTexture("models/bh.jpg")
-            self.meteor.setTexture(self.meteor_tex, 1)
-          except: pass
-          self.meteor.reparentTo(render)
-          self.meteor.setPos(self.meteorvector[0])
-          self.meteor.setScale(0.2)
-          self.meteorCollider = self.meteor.attachNewNode(CollisionNode('mtnode'))
-          self.meteorCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
-          base.cTrav.addCollider(self.meteorCollider, self.collisionHandler)
-          self.objects.append(Body(self.meteor,0.001,(self.meteorvector[0]-self.meteorvector[1])/10.0,Vec3(0,0,0)))
+      if self.skill == "mt" and not self.meteorcreated and self.meteorcreation:
+        self.meteorcreated = True
+        self.meteorcreation = False
+        self.meteor = loader.loadModel("models/planet_sphere")
+        try:
+          self.meteor_tex = loader.loadTexture("models/bh.jpg")
+          self.meteor.setTexture(self.meteor_tex, 1)
+        except: pass
+        self.meteor.reparentTo(render)
+        auxvec = self.meteorvector[1] - self.meteorvector[0]
+        auxvec.normalize()
+        self.meteor.setPos(self.meteorvector[0] - auxvec*5)
+        self.meteor.setScale(0.2)
+        self.meteorCollider = self.meteor.attachNewNode(CollisionNode('mtnode'))
+        self.meteorCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+        base.cTrav.addCollider(self.meteorCollider, self.collisionHandler)
+        self.objects.append(Body(self.meteor,0.001,(self.meteorvector[0]-self.meteorvector[1])/30.0,Vec3(0,0,0)))
 
     elif base.mouseWatcherNode.hasMouse() and status == "down":
       #First we get the mouse position on the screen during the click
@@ -633,14 +642,29 @@ class World:
           self.whitehole.reparentTo(render)
           self.whitehole.setPos(pos3d)
           self.whitehole.setScale(2)
-          self.whiteholeCollider = self.whitehole.attachNewNode(CollisionNode('bhnode'))
+          self.whiteholeCollider = self.whitehole.attachNewNode(CollisionNode('hnode'))
           self.whiteholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
           base.cTrav.addCollider(self.whiteholeCollider, self.collisionHandler)
           self.objects.append(Body(self.whitehole,-3,Vec3(0,0,0),Vec3(0,0,0)))
+        elif self.skill == "hole" and self.nholes > 0:
+          self.nholes -= 1
+          self.wormhole = loader.loadModel("models/planet_sphere")
+          self.wormhole.reparentTo(render)
+          self.wormhole.setPos(pos3d)
+          self.wormhole.setScale(0.5)
+          self.wormholeCollider = self.wormhole.attachNewNode(CollisionNode('holenode'))
+          self.wormholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+          base.cTrav.addCollider(self.wormholeCollider, self.collisionHandler)
+          self.objects.append(Body(self.wormhole,0,Vec3(0,0,0),Vec3(0,0,0)))
+          self.holes.append(self.wormhole)
         elif self.skill == "mt":
-          if "planet" in self.objects[-1].node.getChild(1).getName():
+          if not self.meteorcreated and self.holes:
+            start = None
+            for i in self.holes:
+              if not start: start = i.getPos()
+              elif (pos3d - i.getPos()).length() < (pos3d - start).length(): start = i.getPos()
             self.meteorcreation = True
-            self.meteorvector = [pos3d,pos3d]
+            self.meteorvector = [start,pos3d]
 
 
   def rotatePlanets(self):
