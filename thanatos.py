@@ -13,7 +13,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.4.2
+#VERSION 0.4.3
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -207,13 +207,17 @@ class World:
     #but will make more sense by the time others difficult levels get implemented.
     self.caution = 0
     self.lines = LineNodePath(parent = render, thickness = 3.0, colorVec = Vec4(1, 0, 0, 1))
-    self.orbitlines = LineNodePath(parent = render, thickness = 3.0, colorVec = Vec4(0, 0, 1, 1))
+    self.orbitlines = LineSegs()
+    self.orbitlines.setThickness(1)
+    self.orbitlines.setColor(Vec4(0,1,0,1))
+    self.orbitsegnode = NodePath("")
+    
     self.sizescale = 1.6
     self.orbitscale = 10
 
     #Initialize parameters for the meteor creation routines
     self.meteorcreation = False
-    self.meteorline = LineNodePath(parent = render, thickness = 3.0, colorVec = Vec4(1, 0, 0, 1))
+    self.meteorline = LineNodePath(parent = render, thickness = 1, colorVec = Vec4(1, 0, 0, 1))
     
     #Define game pace
     self.pace = 1
@@ -221,6 +225,7 @@ class World:
     self.holes = []
     self.nholes = 2
     self.meteorcreated = False
+    self.start = True
     
     #Objects is the main array that keeps trace of all the Body type objects
     self.objects = []
@@ -448,17 +453,24 @@ class World:
         if self.objects[i].mass < 1 and self.objects[i].mass > 0:
           self.objects[i].predPos.append(self.objects[i].predPos[-1] + self.objects[i].predVel * 5)
 
-    #Draw blue lines to show the predicted path for each planet.
-    self.lines.reset()
+    self.orbitsegnode.removeNode()
     self.orbitlines.reset()
-    orbitlines = []
     for i in range(len(self.objects)):
-      for j in range(30):
-        try:
-          orbitlines.append((self.objects[i].predPos[j],self.objects[i].predPos[j+1]))
-        except: pass
-    self.orbitlines.drawLines(orbitlines)
-    self.orbitlines.create()
+      if 0 < self.objects[i].mass < 1:
+        self.orbitlines.moveTo(self.objects[i].predPos[0])
+        for j in range(1,30):
+          self.orbitlines.drawTo(self.objects[i].predPos[j+1])
+    self.orbitsegnode = render.attachNewNode(self.orbitlines.create())
+    self.orbitsegnode.setTransparency(True)
+    segs = 0
+    for i in range(len(self.objects)):
+      if 0 < self.objects[i].mass < 1:
+        alpha = 0
+        for j in range(30):
+          self.orbitlines.setVertexColor(segs*30+j,0.13,0.41,0.55,1-alpha)
+          alpha += 0.02
+        segs += 1
+        
 
 
     #Draw a line to indicate the direction and speed of the meteor creation
