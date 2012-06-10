@@ -13,7 +13,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.4.0
+#VERSION 0.4.1
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -589,9 +589,9 @@ class World:
           self.meteor.setTexture(self.meteor_tex, 1)
         except: pass
         self.meteor.reparentTo(render)
-        auxvec = self.meteorvector[1] - self.meteorvector[0]
+        auxvec = self.meteorvector[0] - self.meteorvector[1]
         auxvec.normalize()
-        self.meteor.setPos(self.meteorvector[0] - auxvec*5)
+        self.meteor.setPos(self.meteorvector[0] + auxvec)
         self.meteor.setScale(0.2)
         self.meteorCollider = self.meteor.attachNewNode(CollisionNode('mtnode'))
         self.meteorCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
