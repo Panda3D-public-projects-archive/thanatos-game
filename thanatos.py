@@ -13,7 +13,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.4.4
+#VERSION 0.4.5
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -182,6 +182,8 @@ class World:
     self.minimapRegion.setCamera(minimapc)
     minimapc.setPos(0, 0, 270)
     minimapc.setHpr(0,-90,0)
+
+    base.setFrameRateMeter(True)
     
     #Same procedure as above, but this is for the menu
     self.menuRegion = base.win.makeDisplayRegion(0.8,1,0,1)
@@ -215,6 +217,9 @@ class World:
     self.sizescale = 1.6
     self.orbitscale = 10
 
+    #How many times the prediction loop will be ran
+    self.pred = 30
+
     #Initialize parameters for the meteor creation routines
     self.meteorcreation = False
     self.meteorline = LineNodePath(parent = render, thickness = 1, colorVec = Vec4(1, 0, 0, 1))
@@ -236,7 +241,7 @@ class World:
     self.orbitscale = 10
 
     #n defines the number of planets to be created
-    self.n = 8
+    self.n = 4
     
     #Changes which skill is asigned to the left mouse button.
     self.skill = "bh"
@@ -441,32 +446,48 @@ class World:
         self.objects[i].vel = self.objects[i].vel + a * self.pace
         #And its acceleration is now 'a'
         self.objects[i].acel = a
-
+        
     #Changes the object's position accordingly. The mass restriction is because black holes,
     #while holes and worm holes aren't supposed to move at all.
     for i in range(len(self.objects)):
       if 0 < self.objects[i].mass < 1:
         self.objects[i].node.setPos(self.objects[i].node.getPos() + self.objects[i].vel *self.pace)
+
+        
     #Does the previous calculation 30 times ahead, so the player can have a prediction on
     #the path each planet will follow.
-    for i in range(len(self.objects)):
-      self.objects[i].predPos = [self.objects[i].node.getPos()]
-      self.objects[i].predVel = self.objects[i].vel
-      self.objects[i].predAcel = self.objects[i].acel
-    for k in range(30):
-      for i in range(len(self.objects)):
+    for i in self.objects:
+      i.predPos = [i.node.getPos()]
+      i.predVel = i.vel
+      i.predAcel = i.acel
+      i.node.clearColor()
+      i.danger = False
+    for k in range(self.pred):
+      for i in self.objects:
+
         a = Vec3(0,0,0)
-        for j in range(len(self.objects)):
+        for j in self.objects:
           if i != j:
-            vec = self.objects[j].predPos[-1] - self.objects[i].predPos[-1]
+            vec = j.predPos[-1] - i.predPos[-1]
             vec.normalize()
-            vec *= self.objects[j].mass
-            vec /= (self.objects[i].predPos[-1] - self.objects[j].predPos[-1]).lengthSquared()
+            vec *= j.mass
+            vec /= (i.predPos[-1] - j.predPos[-1]).lengthSquared()
             a += vec
-        self.objects[i].predVel = self.objects[i].predVel + a* 5
-        self.objects[i].predAcel = a
-        if 0 < self.objects[i].mass < 1 or self.objects[i].node.getName() == "activedummy": 
-          self.objects[i].predPos.append(self.objects[i].predPos[-1] + self.objects[i].predVel * 5)
+        i.predVel = i.predVel + a * 5
+        i.predAcel = a
+        for j in self.objects:
+          if i != j:
+            ki = min(k,len(i.predPos)-1)
+            kj = min(k,len(j.predPos)-1)
+            if (i.predPos[ki] - j.predPos[kj]).length() < (j.node.getScale()[0] + i.node.getScale()[0]):
+              j.node.setColor(Vec4(1,0,0,1))
+              j.danger = True
+        if i.danger and i.node.getName() != "activedummy":
+          i.predPos.append(i.predPos[-1])
+        elif (0 < i.mass < 1 or i.node.getName() == "activedummy"): 
+          i.predPos.append(i.predPos[-1] + i.predVel * 5)
+
+            
 
 
 
@@ -477,7 +498,7 @@ class World:
     for i in range(len(self.objects)):
       if 0 < self.objects[i].mass < 1  or self.objects[i].node.getName() == "activedummy":
         self.orbitlines.moveTo(self.objects[i].predPos[0])
-        for j in range(1,30):
+        for j in range(1,self.pred):
           self.orbitlines.drawTo(self.objects[i].predPos[j+1])
     self.orbitsegnode = render.attachNewNode(self.orbitlines.create())
     self.orbitsegnode.setTransparency(True)
@@ -485,8 +506,8 @@ class World:
     for i in range(len(self.objects)):
       if 0 < self.objects[i].mass < 1  or self.objects[i].node.getName() == "activedummy":
         alpha = 0
-        for j in range(30):
-          self.orbitlines.setVertexColor(segs*30+j,0.13,0.41,0.55,1-alpha)
+        for j in range(self.pred):
+          self.orbitlines.setVertexColor(segs*self.pred+j,0.13,0.41,0.55,1-alpha)
           alpha += 0.02
         segs += 1
         
@@ -511,7 +532,7 @@ class World:
       self.meteorline.create()
 
 
-    #Draw red lines connection planets according to the caution level which can be changed
+    """#Draw red lines connection planets according to the caution level which can be changed
     #with the keyboard. This ranges from drawing no lines at all to drawing lines connecting
     #every planet.
     #Caution level -1: shows lines connecting all planets, one with each other;
@@ -538,7 +559,7 @@ class World:
         for j in range(len(self.objects)):
           lines.append((self.objects[i].node.getPos(),self.objects[j].node.getPos()))
     self.lines.drawLines(lines)
-    self.lines.create()
+    self.lines.create()"""
     return task.again
 
 
@@ -586,7 +607,6 @@ class World:
             break
     
     return task.again
-
 
 
   def keyboardPress(self,status):
