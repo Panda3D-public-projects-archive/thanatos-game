@@ -13,7 +13,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.4.1
+#VERSION 0.4.2
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -632,7 +632,7 @@ class World:
           self.blackholeCollider = self.blackhole.attachNewNode(CollisionNode('bhnode'))
           self.blackholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
           base.cTrav.addCollider(self.blackholeCollider, self.collisionHandler)
-          self.objects.append(Body(self.blackhole,7,Vec3(0,0,0),Vec3(0,0,0)))
+          self.objects.append(Body(self.blackhole,3,Vec3(0,0,0),Vec3(0,0,0)))
         elif self.skill == "wh":
           self.whitehole = loader.loadModel("models/planet_sphere")
           try:
@@ -642,10 +642,10 @@ class World:
           self.whitehole.reparentTo(render)
           self.whitehole.setPos(pos3d)
           self.whitehole.setScale(2)
-          self.whiteholeCollider = self.whitehole.attachNewNode(CollisionNode('hnode'))
+          self.whiteholeCollider = self.whitehole.attachNewNode(CollisionNode('whnode'))
           self.whiteholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
           base.cTrav.addCollider(self.whiteholeCollider, self.collisionHandler)
-          self.objects.append(Body(self.whitehole,-3,Vec3(0,0,0),Vec3(0,0,0)))
+          self.objects.append(Body(self.whitehole,-1,Vec3(0,0,0),Vec3(0,0,0)))
         elif self.skill == "hole" and self.nholes > 0:
           self.nholes -= 1
           self.wormhole = loader.loadModel("models/planet_sphere")
