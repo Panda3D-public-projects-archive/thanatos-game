@@ -7,6 +7,7 @@ import random
 import sys
 import math
 from direct.directtools.DirectGeometry import LineNodePath
+from direct.gui.OnscreenText import OnscreenText
 from pandac.PandaModules import CollisionHandlerQueue, CollisionNode, CollisionSphere, CollisionTraverser, BitMask32, CollisionRay
 from direct.showbase.ShowBase import Plane, ShowBase, Vec3, Point3, CardMaker 
 from direct.directbase.DirectStart import *
@@ -579,15 +580,23 @@ class ResourceHandler:
   #Control the use of recourses
   #They are increased with time in each frame and are decresead by using skills
   def __init__(self):
-    self.res = 50.0
-    self.maxres = 200.0
-    self.inc = 0.1
-    taskMgr.add(self.recoverRes, "Recover Resource")
+    self.res = 50.0     #Initial quantity of resource
+    self.maxres = 200.0 #Maximum amount of resource
+    self.inc = 0.1      #Defines resources increased each frame
     
-  def recoverRes (self, task):
-    #Recover resources each frame
-    print self.res
-    self.gainRes(self.inc)
+    #Print an onscreen text with the resources
+    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), pos = (1.07, 0.35), scale = 0.07, fg = (255,255,255,200))
+    
+    #Add a task for resource related functions
+    taskMgr.add(self.resourceTask, "Resource Task")
+    
+  def resourceTask (self, task):
+    #Task called each frame for functions related to resources
+    self.gainRes(self.inc)   #Inscrease resources each frame
+    
+    self.resourceText.destroy()
+    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), pos = (1.07, 0.35), scale = 0.07, fg = (255,255,255,200))
+    
     return task.cont
 
   def checkResource (self, amount):
