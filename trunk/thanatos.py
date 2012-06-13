@@ -934,7 +934,7 @@ class RandomHazardsHandler:
             self.randomHazard = ""
     return task.again
     
-  
+
 World = World()
 Skills = SkillHandler()
 Camera = CameraHandler()
