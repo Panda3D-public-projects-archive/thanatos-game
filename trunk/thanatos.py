@@ -14,7 +14,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.4.6
+#VERSION 0.5.0
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -63,16 +63,16 @@ class World:
     lens.setFilmSize(2, 2)
     lens.setNearFar(-1000, 1000)
     myCamera2d.node().setLens(lens)
-    myRender2d = NodePath('myRender2d')
-    myRender2d.setDepthTest(False)
-    myRender2d.setDepthWrite(False)
-    myCamera2d.reparentTo(myRender2d)
+    self.myRender2d = NodePath('myRender2d')
+    self.myRender2d.setDepthTest(False)
+    self.myRender2d.setDepthWrite(False)
+    myCamera2d.reparentTo(self.myRender2d)
     self.menuRegion.setCamera(myCamera2d)
     aspectRatio = base.getAspectRatio()
-    myAspect2d = myRender2d.attachNewNode(PGTop('myAspect2d'))
+    myAspect2d = self.myRender2d.attachNewNode(PGTop('myAspect2d'))
     myAspect2d.setScale(1.0 / aspectRatio, 1.0, 1.0)
     myAspect2d.node().setMouseWatcher(base.mouseWatcherNode)
-    imageObject = OnscreenImage(image = 'models/menu.jpg', scale =  (1,1,1), parent = myRender2d)
+    imageObject = OnscreenImage(image = 'models/menu.jpg', scale =  (1,1,1), parent = self.myRender2d)
     
     #Creates a line connecting planets when these are close enough to satisfy self.orbitscale.
     #Different values of self.caution define how far lines start to appear,
@@ -168,6 +168,7 @@ class World:
     #This is used since we want to see the inside of the sphere, and also only treat
     #collisions when other objects leave the sphere
     self.sky = loader.loadModel("models/solar_sky_sphere")
+    self.sky.setName("sky")
     
     #Reparenting to 'render' is makes the model visible. Otherwise it wouldn't be renderized.
     self.sky.reparentTo(render)
@@ -189,6 +190,7 @@ class World:
     #Exactly the same procedure as the sky sphere creation
     #The only difference is that a common sphere is used as the model
     self.sun = loader.loadModel("models/planet_sphere")
+    self.sun.setName("sun")
     try:
       self.sun_tex = loader.loadTexture("models/s%s.jpg"%(int(random.random()*6)))
       self.sun.setTexture(self.sun_tex, 1)
@@ -213,6 +215,7 @@ class World:
     #Same procedure as the sun creation, but with random textures, sizes and orbit radius.
     for i in range(self.n):
       self.planet = loader.loadModel("models/planet_sphere")
+      self.planet.setName("planet%d"%i)
       try:
         self.planet_tex = loader.loadTexture("models/p%s.jpg"%(int(random.random()*9)))
         self.planet.setTexture(self.planet_tex, 1)
@@ -264,6 +267,7 @@ class World:
     #The acceleration one body applies to another is given by
     #the equation 'a = G*M/(r^2). But of course we just ignore the Gravitational constant
 
+
     #'i' is the Body that we are calculating its accel and vel for
     for i in range(len(self.objects)):
 
@@ -310,10 +314,9 @@ class World:
       i.danger = False
     for k in range(self.pred):
       for i in self.objects:
-
         a = Vec3(0,0,0)
         for j in self.objects:
-          if i != j:
+          if i != j and j.node.getName() not in "blackhole,whitehole,randombh,randomwh":
             vec = j.predPos[-1] - i.predPos[-1]
             vec.normalize()
             vec *= j.mass
@@ -401,31 +404,31 @@ class World:
         self.meteorcreated = False
       if intoname in "skynode,sunnode,bhnode,whnode,holenode" and fromname not in "skynode,sunnode,bhnode,whnode,holenode":
         for j in range(len(self.objects)):
-          if entry.getFromNodePath().getParent().getPos() == self.objects[j].node.getPos():
+          if entry.getFromNodePath().getParent().getName() == self.objects[j].node.getName():
             self.objects.pop(j)
             entry.getFromNodePath().getParent().detachNode()
             break
       if "planetnode" in fromname and "planetnode" in intoname:
         for j in range(len(self.objects)):
-          if entry.getFromNodePath().getParent().getPos() == self.objects[j].node.getPos():
+          if entry.getFromNodePath().getParent().getName() == self.objects[j].node.getName():
             self.objects.pop(j)
             entry.getFromNodePath().getParent().detachNode()
             break
         for j in range(len(self.objects)):
-          if entry.getIntoNodePath().getParent().getPos() == self.objects[j].node.getPos():
+          if entry.getIntoNodePath().getParent().getName() == self.objects[j].node.getName():
             self.objects.pop(j)
             entry.getIntoNodePath().getParent().detachNode()
             break
       if "mtnode" in fromname and "planetnode" in intoname:
         mtvel = Vec3(0,0,0)
         for j in range(len(self.objects)):
-          if entry.getFromNodePath().getParent().getPos() == self.objects[j].node.getPos():
+          if entry.getFromNodePath().getParent().getName() == self.objects[j].node.getName():
             mt = self.objects.pop(j)
             mtvel = mt.vel*mt.mass
             entry.getFromNodePath().getParent().detachNode()
             break
         for j in range(len(self.objects)):
-          if entry.getIntoNodePath().getParent().getPos() == self.objects[j].node.getPos():
+          if entry.getIntoNodePath().getParent().getName() == self.objects[j].node.getName():
             self.objects[j].vel += mtvel/self.objects[j].mass
             break
     
@@ -441,7 +444,14 @@ class World:
       self.day_period_object[i] = self.objects[i+1].node.hprInterval(self.objects[i].mass*1500, Vec3(360, 0, 0))
       self.day_period_object[i].loop()
       
-
+  def vanishNode(self, name):
+    #End with a black or white hole creation
+    for i in range(len(self.objects)):
+      if self.objects[i].node.getName() == name:
+        self.objects[i].node.detachNode()
+        self.objects.pop(i)
+        break
+        
       
 class CameraHandler(DirectObject):
   '''Defines and controls the camera'''
@@ -580,12 +590,12 @@ class ResourceHandler:
   #Control the use of recourses
   #They are increased with time in each frame and are decresead by using skills
   def __init__(self):
-    self.res = 50.0     #Initial quantity of resource
-    self.maxres = 200.0 #Maximum amount of resource
+    self.res = 2000.0     #Initial quantity of resource
+    self.maxres = 5000.0 #Maximum amount of resource
     self.inc = 0.1      #Defines resources increased each frame
     
     #Print an onscreen text with the resources
-    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), pos = (1.07, 0.35), scale = 0.07, fg = (255,255,255,200))
+    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), pos = (0, 0.3), scale = (0.3,0.1), fg = (255,255,255,200), parent = World.myRender2d)
     
     #Add a task for resource related functions
     taskMgr.add(self.resourceTask, "Resource Task")
@@ -595,7 +605,7 @@ class ResourceHandler:
     self.gainRes(self.inc)   #Inscrease resources each frame
     
     self.resourceText.destroy()
-    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), pos = (1.07, 0.35), scale = 0.07, fg = (255,255,255,200))
+    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), pos = (0, 0.3), scale = (0.3,0.1), fg = (255,255,255,200), parent = World.myRender2d)
     
     return task.cont
 
@@ -628,8 +638,8 @@ class SkillHandler (DirectObject):
     self.resource = ResourceHandler()
     
     #Defines the cost of resources needed for each skill in a dictionary
-    self.cost = {"bh" : 1, "wh" : 1, "mt" : 10, "hole" : 10, "sm" : 0.5}  #{blackhole, whitehole, meteor, wormhole, slow-motion}
-    self.selectedSkill = "bh"   #set the default selected skill
+    self.cost = {"blackhole" : 1, "whitehole" : 1, "meteor" : 10, "wormhole" : 10, "slowmotion" : 0.5}  #{blackhole, whitehole, meteor, wormhole, slow-motion}
+    self.selectedSkill = "blackhole"   #set the default selected skill
     self.activeSkill = ""       #set the skill being used as null
     self.slow = False           #set the slow motion flag to false (disabled)
    
@@ -668,11 +678,11 @@ class SkillHandler (DirectObject):
   def keyboardPress(self, status):
     #Callback for key presses
     #Sets the skills parameters
-    if status == "z": self.selectedSkill = "bh"
-    elif status == "x": self.selectedSkill = "wh"
-    elif status == "c": self.selectedSkill = "mt"
-    elif status == "v": self.selectedSkill = "hole"
-    elif status == "space-down" and self.resource.checkResource(self.cost["sm"]): #Check if there are enough resources for the skill
+    if status == "z": self.selectedSkill = "blackhole"
+    elif status == "x": self.selectedSkill = "whitehole"
+    elif status == "c": self.selectedSkill = "meteor"
+    elif status == "v": self.selectedSkill = "wormhole"
+    elif status == "space-down" and self.resource.checkResource(self.cost["slowmotion"]): #Check if there are enough resources for the skill
       self.slow = True
     elif status == "space-up": self.slow = False
  
@@ -680,16 +690,16 @@ class SkillHandler (DirectObject):
   def useResource (self, task):
     #Decrease resources continually each frame as long as a certain skill is active
     #Only use resources when determined skills are active
-    if self.activeSkill in ["bh","wh"]:
+    if self.activeSkill in ["blackhole","whitehole"]:
       if self.resource.checkResource(self.cost[self.activeSkill]):
         #Spend resources needed to perform the skill
         self.resource.spendRes(self.cost[self.activeSkill])
-      else:
+      else: 
         #If there are no resources end the skill use
+        World.vanishNode(self.activeSkill)
         self.activeSkill = ""
-        self.vanishHole()
     return task.again
- 
+   
  
   def leftMouseClick(self, status):
     #This functions is the callback for a mouse click
@@ -700,37 +710,38 @@ class SkillHandler (DirectObject):
       pos3d = self.getPos3d(base.mouseWatcherNode.getMouse())
       
       if pos3d:
-        if self.selectedSkill == "bh":
+        if self.selectedSkill == "blackhole":
           #Creates a black hole.
-          self.activeSkill = "bh"
-          self.createBlackHole(pos3d)
+          self.activeSkill = self.selectedSkill
+          self.createBlackHole(pos3d, self.activeSkill)
           
-        elif self.selectedSkill == "wh":
+        elif self.selectedSkill == "whitehole":
           #Creates a white hole.
-          self.activeSkill = "wh"
-          self.createWhiteHole(pos3d)
+          self.activeSkill = self.selectedSkill
+          self.createWhiteHole(pos3d, self.activeSkill)
           
-        elif self.selectedSkill == "mt" and not World.meteorcreated and self.holes:
+        elif self.selectedSkill == "meteor" and not World.meteorcreated and self.holes:
           #Create the meteor path prediction
-          self.activeSkill = "mt"
+          self.activeSkill = self.selectedSkill
           self.setupMeteorPath(pos3d)
           
-        elif self.selectedSkill == "hole" and self.nholes > 0:
+        elif self.selectedSkill == "wormhole" and self.nholes > 0:
           #Creates a worm hole.
-          self.createWormHole(pos3d)
-          self.resource.spendRes(self.cost["hole"])
+          self.createWormHole(pos3d, self.selectedSkill)
+          self.resource.spendRes(self.cost[self.selectedSkill])
           
     elif base.mouseWatcherNode.hasMouse() and status == "up":
-    
-      if self.activeSkill in ["bh","wh"]:
-        #Destroy the black or white whole
-        self.vanishHole()
+      
+      if self.activeSkill in ["blackhole", "whitehole"]:
+        #Destroy the black or white hole
+        World.vanishNode(self.activeSkill)
         self.activeSkill = ""
         
-      elif self.activeSkill == "mt" and not World.meteorcreated:
+      elif self.activeSkill == "meteor" and not World.meteorcreated:
         #Create meteor.
-        self.createMeteor()
-        self.resource.spendRes(self.cost["mt"])
+        self.createMeteor(self.meteorvector[0], self.meteorvector[1], self.activeSkill)
+        World.meteorcreated = True
+        self.resource.spendRes(self.cost[self.activeSkill])
         self.activeSkill = ""
 
         
@@ -760,7 +771,7 @@ class SkillHandler (DirectObject):
   def slowMotion (self, task):
     #Slows the time or turns it a little back to normal if the player is holding space
     if self.slow == True and World.pace > 0.2:
-      self.resource.spendRes(self.cost["sm"])
+      self.resource.spendRes(self.cost["slowmotion"])
       World.pace = World.pace - 0.02
     elif World.pace < 1:
       World.pace += 0.02
@@ -771,7 +782,7 @@ class SkillHandler (DirectObject):
     #Creates a dummy node to predict the path of a to-be-created meteor
     self.dummy = NodePath("dummy")
     self.dummy.reparentTo(render)
-    self.dummy.setPos(Point3(10,10,0))
+    self.dummy.setPos(Point3(100,100,0))
     self.dummy = Body(self.dummy,0,Vec3(0,0,0),Vec3(0,0,0))
     World.objects.append(self.dummy)
     
@@ -792,7 +803,7 @@ class SkillHandler (DirectObject):
     #Draw a line to indicate the direction and speed of the meteor creation
     self.meteorline.reset()
     meteorline = []
-    if self.activeSkill == "mt" and base.mouseWatcherNode.hasMouse():
+    if self.activeSkill == "meteor" and base.mouseWatcherNode.hasMouse():
       pos3d = self.getPos3d(base.mouseWatcherNode.getMouse())
       if pos3d:
         self.meteorvector[1] = pos3d
@@ -803,79 +814,129 @@ class SkillHandler (DirectObject):
     return task.again
 
         
-  def createMeteor(self):
+  def createMeteor(self, pos0, pos1, name):
     #Create a meteor object in the game world
     self.dummy.node.setName("dummy")
-    self.meteor = loader.loadModel("models/planet_sphere")
+    meteor = loader.loadModel("models/planet_sphere")
+    meteor.setName(name)
     try:
-      self.meteor_tex = loader.loadTexture("models/bh.jpg")
-      self.meteor.setTexture(self.meteor_tex, 1)
+      meteor_tex = loader.loadTexture("models/bh.jpg")
+      meteor.setTexture(meteor_tex, 1)
     except: pass
-    self.meteor.reparentTo(render)
-    auxvec = self.meteorvector[0] - self.meteorvector[1]
+    meteor.reparentTo(render)
+    auxvec = pos0 - pos1
     auxvec.normalize()
-    self.meteor.setPos(self.meteorvector[0] + auxvec)
-    self.meteor.setScale(0.2)
-    self.meteorCollider = self.meteor.attachNewNode(CollisionNode('mtnode'))
-    self.meteorCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
-    base.cTrav.addCollider(self.meteorCollider, World.collisionHandler)
-    World.objects.append(Body(self.meteor,0.001,(self.meteorvector[0]-self.meteorvector[1])/30.0,Vec3(0,0,0)))
+    meteor.setPos(pos0 + auxvec)
+    meteor.setScale(0.2)
+    meteorCollider = meteor.attachNewNode(CollisionNode('mtnode'))
+    meteorCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+    base.cTrav.addCollider(meteorCollider, World.collisionHandler)
+    World.objects.append(Body(meteor,0.001,(pos0 - pos1)/30.0,Vec3(0,0,0)))
   
   
-  def createBlackHole(self, pos):
+  def createBlackHole(self, pos, name):
     #This creates a black hole. Same procedure as planets and sun creation.
-    self.blackhole = loader.loadModel("models/planet_sphere")
+    blackhole = loader.loadModel("models/planet_sphere")
+    blackhole.setName(name)
     try:
-      self.blackhole_tex = loader.loadTexture("models/bh.jpg")
-      self.blackhole.setTexture(self.blackhole_tex, 1)
+      blackhole_tex = loader.loadTexture("models/bh.jpg")
+      blackhole.setTexture(blackhole_tex, 1)
     except: pass
-    self.blackhole.reparentTo(render)
-    self.blackhole.setPos(pos)
-    self.blackhole.setScale(2)
-    self.blackholeCollider = self.blackhole.attachNewNode(CollisionNode('bhnode'))
-    self.blackholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
-    base.cTrav.addCollider(self.blackholeCollider, World.collisionHandler)
-    World.objects.append(Body(self.blackhole,3,Vec3(0,0,0),Vec3(0,0,0)))
+    blackhole.reparentTo(render)
+    blackhole.setPos(pos)
+    blackhole.setScale(2)
+    blackholeCollider = blackhole.attachNewNode(CollisionNode('bhnode'))
+    blackholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+    base.cTrav.addCollider(blackholeCollider, World.collisionHandler)
+    World.objects.append(Body(blackhole,3,Vec3(0,0,0),Vec3(0,0,0)))
       
   
-  def createWhiteHole(self, pos):
+  def createWhiteHole(self, pos, name):
     #Creates a white hole on the game world.
-    self.whitehole = loader.loadModel("models/planet_sphere")
+    whitehole = loader.loadModel("models/planet_sphere")
+    whitehole.setName(name)
     try:
       self.whitehole_tex = loader.loadTexture("models/bh.jpg")
-      self.whitehole.setTexture(self.whitehole_tex, 1)
+      self.whitehole.setTexture(whitehole_tex, 1)
     except: pass
-    self.whitehole.reparentTo(render)
-    self.whitehole.setPos(pos)
-    self.whitehole.setScale(2)
-    self.whiteholeCollider = self.whitehole.attachNewNode(CollisionNode('whnode'))
-    self.whiteholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
-    base.cTrav.addCollider(self.whiteholeCollider, World.collisionHandler)
-    World.objects.append(Body(self.whitehole,-1,Vec3(0,0,0),Vec3(0,0,0)))
+    whitehole.reparentTo(render)
+    whitehole.setPos(pos)
+    whitehole.setScale(2)
+    whiteholeCollider = whitehole.attachNewNode(CollisionNode('whnode'))
+    whiteholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+    base.cTrav.addCollider(whiteholeCollider, World.collisionHandler)
+    World.objects.append(Body(whitehole,-1,Vec3(0,0,0),Vec3(0,0,0)))
 
     
-  def createWormHole(self, pos):
+  def createWormHole(self, pos, name):
     #Creates a worm hole.
     #Meteors can only be generated throw wormholes
     self.nholes -= 1
-    self.wormhole = loader.loadModel("models/planet_sphere")
-    self.wormhole.reparentTo(render)
-    self.wormhole.setPos(pos)
-    self.wormhole.setScale(0.5)
-    self.wormholeCollider = self.wormhole.attachNewNode(CollisionNode('holenode'))
-    self.wormholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
-    base.cTrav.addCollider(self.wormholeCollider, World.collisionHandler)
-    World.objects.append(Body(self.wormhole,0,Vec3(0,0,0),Vec3(0,0,0)))
-    self.holes.append(self.wormhole)
-    
-    
-  def vanishHole(self):
-    #End with a black or white hole creation
-    World.objects[-1].node.detachNode()
-    World.objects.pop(-1)
+    wormhole = loader.loadModel("models/planet_sphere")
+    wormhole.setName(name)
+    wormhole.reparentTo(render)
+    wormhole.setPos(pos)
+    wormhole.setScale(0.5)
+    wormholeCollider = wormhole.attachNewNode(CollisionNode('holenode'))
+    wormholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+    base.cTrav.addCollider(wormholeCollider, World.collisionHandler)
+    World.objects.append(Body(wormhole,0,Vec3(0,0,0),Vec3(0,0,0)))
+    self.holes.append(wormhole)
 
+    
+class RandomHazardsHandler:
+  def __init__ (self):
+    self.randomHazard = ""    #the active random hazard
+    self.freq = random.randint(100,200)    #ramdonly generated number of frames before another hazard
+    self.duration = 0        #the duration of a random hazard
+    self.hazards = ["randombh", "randomwh", "randommt"]
+    taskMgr.add(self.randomHazardTask, "Random Hazard Task")
+
+  def randomHazardGenerator(self):
+    #Called every time a random Hazard is going to happen
+    self.randomHazard = random.choice(self.hazards)   #get a random skill from the list of skills
+
+    if self.randomHazard in ["randombh", "randomwh"]:
+      self.duration = int(random.gauss(130, 40))
+      radius = random.randint(100,150)
+      angle = random.random()*2*math.pi
+      vx = radius*math.sin(angle)
+      vy = radius*math.cos(angle)
+      pos = Point3(vx,vy,0)
+
+      if self.randomHazard == "randombh":
+        Skills.createBlackHole(pos, self.randomHazard)
+        
+      elif self.randomHazard == "randomwh":
+        Skills.createWhiteHole(pos, self.randomHazard)
+     
+    else:
+      angle = random.random()*2*math.pi
+      start = Point3(-150*math.cos(angle),-150*math.sin(angle),0)
+      endx = start[0]-10*math.cos(angle)+random.random()*3
+      endy = start[1]-10*math.sin(angle)+random.random()*3
+      end = Point3(endx,endy,0)
+      Skills.createMeteor(start, end, self.randomHazard)
+      self.randomHazard = ""
+        
+        
+  def randomHazardTask(self, task):
+    if not self.randomHazard:   #check if there isn't any active hazard   
+      self.freq -= 1            #countdown the number of frames before a hazard
+      if self.freq == 0:
+          self.randomHazardGenerator()          #generate a random hazard
+          self.freq = random.randint(200,400)   #ramdonly generated number of frames before another hazard
+    else:
+      if self.randomHazard in ["randombh", "randomwh"]:
+        self.duration -= 1
+        if self.duration == 0:
+            World.vanishNode(self.randomHazard)
+            self.randomHazard = ""
+    return task.again
+    
   
 World = World()
 Skills = SkillHandler()
 Camera = CameraHandler()
+RandomHazards = RandomHazardsHandler()
 run()
