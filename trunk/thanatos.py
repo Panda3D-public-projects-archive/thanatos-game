@@ -14,7 +14,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 
 
-#VERSION 0.5.0
+#VERSION 0.5.1
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -48,11 +48,14 @@ class World:
     self.minimapRegion.setClearColor(VBase4(1, 1, 1, 1))
     self.minimapRegion.setClearColorActive(True)
     self.minimapRegion.setClearDepthActive(True)
-    minimapc = render.attachNewNode(Camera('minicam'))
-    self.minimapRegion.setCamera(minimapc)
-    minimapc.setPos(0, 0, 270)
-    minimapc.setHpr(0,-90,0)
-
+    minimapc = Camera('minicam')
+    minimapcNP = render.attachNewNode(minimapc)
+    self.minimapRegion.setCamera(minimapcNP)
+    minimapcNP.setPos(0, 0, 270)
+    minimapcNP.setHpr(0,-90,0)
+    minimaplens = PerspectiveLens()
+    #minimaplens.setAspectRatio(minimapc.getAsp(base.win))
+    minimapc.setLens(minimaplens)
     base.setFrameRateMeter(True)
     
     #Same procedure as above, but this is for the menu
@@ -324,17 +327,20 @@ class World:
             a += vec
         i.predVel = i.predVel + a * 5
         i.predAcel = a
-        for j in self.objects:
+      for i in range(len(self.objects)):
+        for j in range(i+1,len(self.objects)):
           if i != j:
-            ki = min(k,len(i.predPos)-1)
-            kj = min(k,len(j.predPos)-1)
-            if (i.predPos[ki] - j.predPos[kj]).length() < (j.node.getScale()[0] + i.node.getScale()[0]):
-              j.node.setColor(Vec4(1,0,0,1))
-              j.danger = True
-        if i.danger and i.node.getName() != "activedummy":
-          i.predPos.append(i.predPos[-1])
-        elif (0 < i.mass < 1 or i.node.getName() == "activedummy"): 
-          i.predPos.append(i.predPos[-1] + i.predVel * 5)
+            ki = min(k,len(self.objects[i].predPos)-1)
+            kj = min(k,len(self.objects[j].predPos)-1)
+            if (self.objects[i].predPos[ki] - self.objects[j].predPos[kj]).length() < (self.objects[j].node.getScale()[0] + self.objects[i].node.getScale()[0]):
+              self.objects[j].node.setColor(Vec4(1,0,0,1))
+              self.objects[j].danger = True
+              self.objects[i].node.setColor(Vec4(1,0,0,1))
+              self.objects[i].danger = True
+        if self.objects[i].danger and self.objects[i].node.getName() != "activedummy":
+          self.objects[i].predPos.append(self.objects[i].predPos[-1])
+        elif (0 < self.objects[i].mass < 1 or self.objects[i].node.getName() == "activedummy"): 
+          self.objects[i].predPos.append(self.objects[i].predPos[-1] + self.objects[i].predVel * 5)
           
 
     #Draw lines showing the prediction of each planet's path
@@ -404,31 +410,31 @@ class World:
         self.meteorcreated = False
       if intoname in "skynode,sunnode,bhnode,whnode,holenode" and fromname not in "skynode,sunnode,bhnode,whnode,holenode":
         for j in range(len(self.objects)):
-          if entry.getFromNodePath().getParent().getName() == self.objects[j].node.getName():
+          if entry.getFromNodePath().getParent() == self.objects[j].node:
             self.objects.pop(j)
             entry.getFromNodePath().getParent().detachNode()
             break
       if "planetnode" in fromname and "planetnode" in intoname:
         for j in range(len(self.objects)):
-          if entry.getFromNodePath().getParent().getName() == self.objects[j].node.getName():
+          if entry.getFromNodePath().getParent() == self.objects[j].node:
             self.objects.pop(j)
             entry.getFromNodePath().getParent().detachNode()
             break
         for j in range(len(self.objects)):
-          if entry.getIntoNodePath().getParent().getName() == self.objects[j].node.getName():
+          if entry.getIntoNodePath().getParent() == self.objects[j].node:
             self.objects.pop(j)
             entry.getIntoNodePath().getParent().detachNode()
             break
       if "mtnode" in fromname and "planetnode" in intoname:
         mtvel = Vec3(0,0,0)
         for j in range(len(self.objects)):
-          if entry.getFromNodePath().getParent().getName() == self.objects[j].node.getName():
+          if entry.getFromNodePath().getParent() == self.objects[j].node:
             mt = self.objects.pop(j)
             mtvel = mt.vel*mt.mass
             entry.getFromNodePath().getParent().detachNode()
             break
         for j in range(len(self.objects)):
-          if entry.getIntoNodePath().getParent().getName() == self.objects[j].node.getName():
+          if entry.getIntoNodePath().getParent() == self.objects[j].node:
             self.objects[j].vel += mtvel/self.objects[j].mass
             break
     
@@ -476,7 +482,7 @@ class CameraHandler(DirectObject):
     '''
     self.camAnchor = render.attachNewNode("Cam Anchor") 
     base.camera.reparentTo(self.camAnchor)
-    base.camera.setPos(0, -self.initZoom, 0) 
+    base.camera.setPos(0, -self.initZoom, 0)
     base.camera.lookAt(self.camAnchor)
     self.camAnchor.setP(-self.initPitch)
        
@@ -590,8 +596,8 @@ class ResourceHandler:
   #Control the use of recourses
   #They are increased with time in each frame and are decresead by using skills
   def __init__(self):
-    self.res = 2000.0     #Initial quantity of resource
-    self.maxres = 5000.0 #Maximum amount of resource
+    self.res = 200.0     #Initial quantity of resource
+    self.maxres = 200.0 #Maximum amount of resource
     self.inc = 0.1      #Defines resources increased each frame
     
     #Print an onscreen text with the resources
@@ -816,7 +822,8 @@ class SkillHandler (DirectObject):
         
   def createMeteor(self, pos0, pos1, name):
     #Create a meteor object in the game world
-    self.dummy.node.setName("dummy")
+    if name == "meteor":
+      self.dummy.node.setName("dummy")
     meteor = loader.loadModel("models/planet_sphere")
     meteor.setName(name)
     try:
