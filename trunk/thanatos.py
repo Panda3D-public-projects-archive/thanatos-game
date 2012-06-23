@@ -15,7 +15,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 from direct.filter.CommonFilters import CommonFilters
 
-#VERSION 0.5.2
+#VERSION 0.6.0
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -94,9 +94,7 @@ class World:
     
     self.sizescale = 1.6
     self.orbitscale = 10
-
-    #How many times the prediction loop will be ran
-    self.pred = 30
+    self.progress = 0
     
     #Define game pace
     self.pace = 1
@@ -112,9 +110,6 @@ class World:
     self.dayscale = self.yearscale / 365.0 * 5
     self.sizescale = 1.6
     self.orbitscale = 10
-
-    #n defines the number of planets to be created
-    self.n = 4
 
     #Creates the handler of collisions and makes it be referenced by self.collisionHandler
     base.cTrav=CollisionTraverser()
@@ -147,18 +142,16 @@ class World:
     #taskMgr.add(self.refreshPlanets, 'refresh')
     taskMgr.doMethodLater(0.01, self.refreshPlanets, 'refresh')
 
-    #Initialization of several arrays (some are useless now, need further checking)
-    self.orbit_period_planet = [0]*self.n
-    self.day_period_planet = [0]*self.n
-    self.planet = [0]*self.n
-    self.planet_tex = [0]*self.n
-    self.orbit_root_planet = [0]*self.n
-
     #Run the functions responsible for creating the planets and configuring their rotations
-    self.loadPlanets()
+    
+    self.loadTypical()
+    #self.loadGiant()
+    #self.loadLow()
+    
     self.rotatePlanets()
     taskMgr.add(self.particleTask, "particles")
     taskMgr.add(self.timer, "timer")
+    taskMgr.add(self.levelTask, "level")
     
   def keyboardPress(self,status):
     #Callback for key presses
@@ -173,18 +166,277 @@ class World:
     self.sun.setShaderInput("time", task.time)
     return task.cont
 
+  def levelTask(self, task):
+    self.progress += 1
+    if self.progress > 3600:
+      self.progress = 0
+      RandomHazards.changeLevel()
+    return task.cont
 
   def particleTask(self, task):
     for i in self.particles:
       i.timer += 1
-      if i.timer > 60:
+      if i.timer > i.duration:
         i.particle.softStop()
         self.particles.pop(self.particles.index(i))
     return task.cont
-    
 
-  def loadPlanets(self):
+    
+  def loadLow(self):
     #This function is responsible for creating the bodies upon the start of the game
+    
+    #How many times the prediction loop will be ran
+    self.pred = 10
+
+    #n defines the number of planets to be created
+    self.n = 8
+    
+    #Loads the model for the sky (big ball surrounding the system)
+    #The model in question is an inverted sphere (sphere with a negative normal vector)
+    #This is used since we want to see the inside of the sphere, and also only treat
+    #collisions when other objects leave the sphere
+    self.sky = loader.loadModel("models/solar_sky_sphere")
+    self.sky.setName("sky")
+    
+    #Reparenting to 'render' is makes the model visible. Otherwise it wouldn't be renderized.
+    self.sky.reparentTo(render)
+
+    #Sets the size of the sky sphere
+    self.sky.setScale(150)
+
+    #Makes it just a black sphere if the texture is not found , otherwise loads it.
+    try:
+      self.sky_tex = loader.loadTexture("models/s.jpg")
+      self.sky.setTexture(self.sky_tex, 1)
+    except:
+      self.sky.setColor(0,0,0,0)
+    self.skyCollider = self.sky.attachNewNode(CollisionNode('skynode'))
+    self.skyCollider.node().addSolid(CollisionInvSphere(0, 0, 0, 1))
+    base.cTrav.addCollider(self.skyCollider, self.collisionHandler)
+
+
+    #Exactly the same procedure as the sky sphere creation
+    #The only difference is that a common sphere is used as the model
+
+
+    self.sun2 = loader.loadModel("models/planet_sphere")
+    self.sun2.reparentTo(render)
+    self.sun2.setScale(0.9)
+    self.filters = CommonFilters(base.win, base.cam)
+    #self.filters.setVolumetricLighting(self.sun2,32,0.7,0.99,0.05)
+
+    
+    self.sun = loader.loadModel("models/planet_sphere")
+    self.sun.setName("sun")
+    self.sun.reparentTo(render)
+    self.sun.setScale(1 * self.sizescale)
+    
+    self.tex1 = [loader.loadTexture("shaders/sunlayer1.png"),loader.loadTexture("shaders/sunlayer1n.png")]
+    self.tex2 = [loader.loadTexture("shaders/sunlayer2.png"),loader.loadTexture("shaders/sunlayer2n.png")]
+    
+    tex3 = loader.loadTexture("shaders/sungradient0.png")
+    
+    self.sun.setShaderInput("tex1", self.tex1[0])
+    self.sun.setShaderInput("tex2", self.tex2[0])
+    self.sun.setShaderInput("fire", tex3)
+    shader = loader.loadShader("shaders/sun.sha")
+    self.sun.setShader(shader)
+
+    #Creates a CollisionNode with a suitable name ('sunnode') and
+    #attaches it to the sun pandaNode
+    self.sunCollider = self.sun.attachNewNode(CollisionNode('sunnode'))
+
+    #Adds a solid to the sunCollider node (a sphere with the same size
+    #and position of its father node (in this case, the sun itself).
+    self.sunCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+
+    #Adds the sunCollider node to the handler (to the FROM list, as default)
+    base.cTrav.addCollider(self.sunCollider, self.collisionHandler)
+
+    #Appends the sun Body object with mass 1 and zero velocity and acceleration
+    self.objects.append(Body(self.sun,1,Vec3(0,0,0),Vec3(0,0,0)))
+    
+    #Same procedure as the sun creation, but with random textures, sizes and orbit radius.
+    for i in range(self.n):
+      self.planet = loader.loadModel("models/planet_sphere")
+      self.planet.setName("planet%d"%i)
+      try:
+        self.planet_tex = loader.loadTexture("models/p%s.jpg"%(int(random.random()*9)))
+        self.planet.setTexture(self.planet_tex, 1)
+      except: pass
+      self.planet.reparentTo(render)
+      
+      #Two seeds are created randomly, one for the X pos and size, the other for the Y pos
+      seed = random.random()/3.0
+      seed2 = random.random()
+      self.planet.setPos(Point3((i+1) * self.orbitscale, 0, 0))
+      #self.planet.setPos( (10*(seed-0.5) * self.orbitscale, 10*(seed2-0.5) * self.orbitscale, 0))
+      self.planet.setScale((seed+0.3) * self.sizescale)
+      self.planetCollider = self.planet.attachNewNode(CollisionNode('planetnode%d'%i))
+      self.planetCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+      base.cTrav.addCollider(self.planetCollider, self.collisionHandler)
+      self.objects.append(Body(self.planet,0.001,Vec3(0,0,0),Vec3(0,0,0)))
+
+    #Calculates and initializes the corresponding velocities for every planet
+    #This is necessary for them to start with a correct orbit
+    #The velocity has to be ortogonal to the acceleration vector, and its
+    #module has to be sqrt(2m/r). The '2' and all other constants are ignored since
+    #all masses are chosen arbitrarily.
+    for i in range(len(self.objects)):
+      #Ignores the sun, since it starts with zero acceleration and velocity
+      if i != 0 and self.objects[i].node.getName() != "dummy":
+        #Gets the vector from the planet 'i' to the sun (vts = vector to sun)
+        vts = self.objects[0].node.getPos() - self.objects[i].node.getPos()
+        r = vts.length()
+
+        #Normalizes the 'vector to sun' vector
+        vts.normalize()
+        k = math.pi/2
+
+        #Rotates it by 90 degrees by applying a rotation matrix multiplication
+        vts = Vec3(vts[0]*math.cos(k)+vts[1]*math.sin(k),vts[0]*-math.sin(k)+vts[1]*math.cos(k),0)
+
+        #Sets its module as sqrt(m/r), where m is the mass of the sun
+        vts = vts*math.sqrt(self.objects[0].mass/r)
+        self.objects[i].vel = Vec3(vts[0],vts[1],vts[2])
+      else: self.objects[i].vel = Vec3(0,0,0)
+      
+      #Every object starts with zero acceleration
+      self.objects[i].acel = Vec3(0,0,0)
+
+  def loadGiant(self):
+    #This function is responsible for creating the bodies upon the start of the game
+
+    #How many times the prediction loop will be ran
+    self.pred = 50
+
+    #n defines the number of planets to be created
+    self.n = 2
+
+    #Loads the model for the sky (big ball surrounding the system)
+    #The model in question is an inverted sphere (sphere with a negative normal vector)
+    #This is used since we want to see the inside of the sphere, and also only treat
+    #collisions when other objects leave the sphere
+    self.sky = loader.loadModel("models/solar_sky_sphere")
+    self.sky.setName("sky")
+    
+    #Reparenting to 'render' is makes the model visible. Otherwise it wouldn't be renderized.
+    self.sky.reparentTo(render)
+
+    #Sets the size of the sky sphere
+    self.sky.setScale(150)
+
+    #Makes it just a black sphere if the texture is not found , otherwise loads it.
+    try:
+      self.sky_tex = loader.loadTexture("models/s.jpg")
+      self.sky.setTexture(self.sky_tex, 1)
+    except:
+      self.sky.setColor(0,0,0,0)
+    self.skyCollider = self.sky.attachNewNode(CollisionNode('skynode'))
+    self.skyCollider.node().addSolid(CollisionInvSphere(0, 0, 0, 1))
+    base.cTrav.addCollider(self.skyCollider, self.collisionHandler)
+
+
+    #Exactly the same procedure as the sky sphere creation
+    #The only difference is that a common sphere is used as the model
+
+
+    self.sun2 = loader.loadModel("models/planet_sphere")
+    self.sun2.reparentTo(render)
+    self.sun2.setScale(0.9)
+    self.filters = CommonFilters(base.win, base.cam)
+    #self.filters.setVolumetricLighting(self.sun2,32,0.7,0.99,0.05)
+
+    
+    self.sun = loader.loadModel("models/planet_sphere")
+    self.sun.setName("sun")
+    self.sun.reparentTo(render)
+    self.sun.setScale(30 * self.sizescale)
+    
+    self.tex1 = [loader.loadTexture("shaders/sunlayer1.png"),loader.loadTexture("shaders/sunlayer1n.png")]
+    self.tex2 = [loader.loadTexture("shaders/sunlayer2.png"),loader.loadTexture("shaders/sunlayer2n.png")]
+    
+    tex3 = loader.loadTexture("shaders/sungradient1.png")
+    
+    self.sun.setShaderInput("tex1", self.tex1[0])
+    self.sun.setShaderInput("tex2", self.tex2[0])
+    self.sun.setShaderInput("fire", tex3)
+    shader = loader.loadShader("shaders/sun.sha")
+    self.sun.setShader(shader)
+
+    #Creates a CollisionNode with a suitable name ('sunnode') and
+    #attaches it to the sun pandaNode
+    self.sunCollider = self.sun.attachNewNode(CollisionNode('sunnode'))
+
+    #Adds a solid to the sunCollider node (a sphere with the same size
+    #and position of its father node (in this case, the sun itself).
+    self.sunCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+
+    #Adds the sunCollider node to the handler (to the FROM list, as default)
+    base.cTrav.addCollider(self.sunCollider, self.collisionHandler)
+
+    #Appends the sun Body object with mass 1 and zero velocity and acceleration
+    self.objects.append(Body(self.sun,3,Vec3(0,0,0),Vec3(0,0,0)))
+    
+    #Same procedure as the sun creation, but with random textures, sizes and orbit radius.
+    for i in range(self.n):
+      self.planet = loader.loadModel("models/planet_sphere")
+      self.planet.setName("planet%d"%i)
+      try:
+        self.planet_tex = loader.loadTexture("models/p%s.jpg"%(int(random.random()*9)))
+        self.planet.setTexture(self.planet_tex, 1)
+      except: pass
+      self.planet.reparentTo(render)
+      
+      #Two seeds are created randomly, one for the X pos and size, the other for the Y pos
+      seed = random.random()
+      seed2 = random.random()
+      print Point3((i+5) * self.orbitscale, 0, 0)
+      self.planet.setPos(Point3((i+3)* 3 * self.orbitscale, 0, 0))
+      #self.planet.setPos( (10*(seed-0.5) * self.orbitscale, 10*(seed2-0.5) * self.orbitscale, 0))
+      self.planet.setScale((seed+0.3) * self.sizescale)
+      self.planetCollider = self.planet.attachNewNode(CollisionNode('planetnode%d'%i))
+      self.planetCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
+      base.cTrav.addCollider(self.planetCollider, self.collisionHandler)
+      self.objects.append(Body(self.planet,0.001,Vec3(0,0,0),Vec3(0,0,0)))
+
+    #Calculates and initializes the corresponding velocities for every planet
+    #This is necessary for them to start with a correct orbit
+    #The velocity has to be ortogonal to the acceleration vector, and its
+    #module has to be sqrt(2m/r). The '2' and all other constants are ignored since
+    #all masses are chosen arbitrarily.
+    for i in range(len(self.objects)):
+      #Ignores the sun, since it starts with zero acceleration and velocity
+      if i != 0 and self.objects[i].node.getName() != "dummy":
+        #Gets the vector from the planet 'i' to the sun (vts = vector to sun)
+        vts = self.objects[0].node.getPos() - self.objects[i].node.getPos()
+        r = vts.length()
+
+        #Normalizes the 'vector to sun' vector
+        vts.normalize()
+        k = math.pi/2
+
+        #Rotates it by 90 degrees by applying a rotation matrix multiplication
+        vts = Vec3(vts[0]*math.cos(k)+vts[1]*math.sin(k),vts[0]*-math.sin(k)+vts[1]*math.cos(k),0)
+
+        #Sets its module as sqrt(m/r), where m is the mass of the sun
+        vts = vts*math.sqrt(self.objects[0].mass/r)
+        self.objects[i].vel = Vec3(vts[0],vts[1],vts[2])
+      else: self.objects[i].vel = Vec3(0,0,0)
+      
+      #Every object starts with zero acceleration
+      self.objects[i].acel = Vec3(0,0,0)
+
+
+
+  def loadTypical(self):
+    #This function is responsible for creating the bodies upon the start of the game
+
+    #How many times the prediction loop will be ran
+    self.pred = 30
+
+    #n defines the number of planets to be created
+    self.n = 4
 
     #Loads the model for the sky (big ball surrounding the system)
     #The model in question is an inverted sphere (sphere with a negative normal vector)
@@ -446,12 +698,16 @@ class World:
       if  "mtnode" in anyname:
         self.meteorcreated = False
       if intoname in "skynode,sunnode,bhnode,whnode,holenode" and fromname not in "skynode,sunnode,bhnode,whnode,holenode":
+        Particle("planet",entry.getFromNodePath().getParent())
         for j in range(len(self.objects)):
           if entry.getFromNodePath().getParent() == self.objects[j].node:
             self.objects.pop(j)
             entry.getFromNodePath().getParent().detachNode()
             break
       if "planetnode" in fromname and "planetnode" in intoname:
+        if entry.getFromNodePath().getParent().getScale()[0] > entry.getIntoNodePath().getParent().getScale()[0]:
+          Particle("planet",entry.getFromNodePath().getParent())
+        else: self.particle = Particle("planet",entry.getIntoNodePath().getParent())
         for j in range(len(self.objects)):
           if entry.getFromNodePath().getParent() == self.objects[j].node:
             self.objects.pop(j)
@@ -463,8 +719,7 @@ class World:
             entry.getIntoNodePath().getParent().detachNode()
             break
       if "mtnode" in fromname and "planetnode" in intoname:
-        self.particle = Particle(entry.getFromNodePath().getParent().getPos())
-        self.particles.append(self.particle)
+        Particle("meteor",entry.getIntoNodePath().getParent())
         mtvel = Vec3(0,0,0)
         for j in range(len(self.objects)):
           if entry.getFromNodePath().getParent() == self.objects[j].node:
@@ -635,7 +890,7 @@ class ResourceHandler:
   #Control the use of recourses
   #They are increased with time in each frame and are decresead by using skills
   def __init__(self):
-    self.res = 200.0     #Initial quantity of resource
+    self.res = 30.0     #Initial quantity of resource
     self.maxres = 200.0 #Maximum amount of resource
     self.inc = 0.1      #Defines resources increased each frame
     
@@ -683,7 +938,7 @@ class SkillHandler (DirectObject):
     self.resource = ResourceHandler()
     
     #Defines the cost of resources needed for each skill in a dictionary
-    self.cost = {"blackhole" : 1, "whitehole" : 1, "meteor" : 10, "wormhole" : 10, "slowmotion" : 0.5}  #{blackhole, whitehole, meteor, wormhole, slow-motion}
+    self.cost = {"blackhole" : 5, "whitehole" : 5, "meteor" : 5, "wormhole" : 20, "slowmotion" : 0.5}  #{blackhole, whitehole, meteor, wormhole, slow-motion}
     self.selectedSkill = "blackhole"   #set the default selected skill
     self.activeSkill = ""       #set the skill being used as null
     self.slow = False           #set the slow motion flag to false (disabled)
@@ -930,29 +1185,57 @@ class SkillHandler (DirectObject):
     self.holes.append(wormhole)
 
 class Particle():
-  def __init__(self,pos):
+  def __init__(self,mode,node):
     self.particle = ParticleEffect()
-    self.particle.loadConfig("smoke.ptf")
-    self.particle.start(render)
-    self.particle.setScale(3)
-    self.particle.setPos(pos)
     self.timer = 0
+    World.particles.append(self)
+    if mode == "meteor":
+      self.particle.setTextureOff()
+      self.particle.loadConfig("fireish.ptf")
+      self.particle.start(node)
+      self.particle.setHpr(0,-90,0)
+      self.particle.setScale(Vec3(0.3,0.3,2)/node.getScale()[0])
+      self.duration = 8
+    elif mode == "planet":
+      self.particle.loadConfig("smoke.ptf")
+      self.particle.start(render)
+      self.particle.setScale(node.getScale()[0]*2)
+      self.duration = 60
+      self.particle.setPos(node.getPos())
+      
     
 class RandomHazardsHandler:
   def __init__ (self):
+    self.level = 1
+    self.levelText = OnscreenText(text = 'Level: ' + str(self.level), pos = (0, 0.2), scale = (0.3,0.1), fg = (255,255,255,200), parent = World.myRender2d)
+    self.minFreq = 200
+    self.maxFreq = 400
+    self.minRadius = 100
+    self.meteorSpeed = 10
+    self.medDuration = 130
     self.randomHazard = ""    #the active random hazard
     self.freq = random.randint(100,200)    #ramdonly generated number of frames before another hazard
     self.duration = 0        #the duration of a random hazard
     self.hazards = ["randombh", "randomwh", "randommt"]
     taskMgr.add(self.randomHazardTask, "Random Hazard Task")
 
+  def changeLevel(self):
+    self.level += 1
+    self.levelText.destroy()
+    self.levelText = OnscreenText(text = 'Level: ' + str(self.level), pos = (0, 0.2), scale = (0.3,0.1), fg = (255,255,255,200), parent = World.myRender2d)
+    self.minRadius -= 10
+    self.minFreq -= 10
+    self.maxFreq -= 10
+    self.meteorSpeed += 5
+    self.medDuration += 10
+
   def randomHazardGenerator(self):
     #Called every time a random Hazard is going to happen
     self.randomHazard = random.choice(self.hazards)   #get a random skill from the list of skills
 
     if self.randomHazard in ["randombh", "randomwh"]:
-      self.duration = int(random.gauss(130, 40))
-      radius = random.randint(100,150)
+      self.duration = int(random.gauss(self.medDuration, 40))
+      radius = random.randint(self.minRadius,150)
       angle = random.random()*2*math.pi
       vx = radius*math.sin(angle)
       vy = radius*math.cos(angle)
@@ -967,8 +1250,8 @@ class RandomHazardsHandler:
     else:
       angle = random.random()*2*math.pi
       start = Point3(-150*math.cos(angle),-150*math.sin(angle),0)
-      endx = start[0]-10*math.cos(angle)+random.random()*3
-      endy = start[1]-10*math.sin(angle)+random.random()*3
+      endx = start[0]-self.meteorSpeed*math.cos(angle)+random.random()*3
+      endy = start[1]-self.meteorSpeed*math.sin(angle)+random.random()*3
       end = Point3(endx,endy,0)
       Skills.createMeteor(start, end, self.randomHazard)
       self.randomHazard = ""
@@ -979,7 +1262,7 @@ class RandomHazardsHandler:
       self.freq -= 1            #countdown the number of frames before a hazard
       if self.freq == 0:
           self.randomHazardGenerator()          #generate a random hazard
-          self.freq = random.randint(200,400)   #ramdonly generated number of frames before another hazard
+          self.freq = random.randint(self.minFreq,self.maxFreq)   #ramdonly generated number of frames before another hazard
     else:
       if self.randomHazard in ["randombh", "randomwh"]:
         self.duration -= 1
