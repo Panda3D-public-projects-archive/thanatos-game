@@ -5,6 +5,7 @@ from panda3d.core import Vec3, Vec4, Point3, Point4
 from direct.showbase.DirectObject import DirectObject
 import random
 import sys
+from direct.particles.ParticleEffect import ParticleEffect
 import math
 from direct.directtools.DirectGeometry import LineNodePath
 from direct.gui.OnscreenText import OnscreenText
@@ -12,9 +13,9 @@ from pandac.PandaModules import CollisionHandlerQueue, CollisionNode, CollisionS
 from direct.showbase.ShowBase import Plane, ShowBase, Vec3, Point3, CardMaker 
 from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
+from direct.filter.CommonFilters import CommonFilters
 
-
-#VERSION 0.5.1
+#VERSION 0.5.2
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -57,6 +58,10 @@ class World:
     #minimaplens.setAspectRatio(minimapc.getAsp(base.win))
     minimapc.setLens(minimaplens)
     base.setFrameRateMeter(True)
+    
+    #Enables particle effects
+    base.enableParticles()
+    self.particles = []
     
     #Same procedure as above, but this is for the menu
     self.menuRegion = base.win.makeDisplayRegion(0.8,1,0,1)
@@ -152,7 +157,8 @@ class World:
     #Run the functions responsible for creating the planets and configuring their rotations
     self.loadPlanets()
     self.rotatePlanets()
-
+    taskMgr.add(self.particleTask, "particles")
+    taskMgr.add(self.timer, "timer")
     
   def keyboardPress(self,status):
     #Callback for key presses
@@ -161,6 +167,20 @@ class World:
     elif status == "s": self.caution = 1
     elif status == "d": self.caution = 2
     elif status == "w": self.caution = -1
+
+
+  def timer(self, task):
+    self.sun.setShaderInput("time", task.time)
+    return task.cont
+
+
+  def particleTask(self, task):
+    for i in self.particles:
+      i.timer += 1
+      if i.timer > 60:
+        i.particle.softStop()
+        self.particles.pop(self.particles.index(i))
+    return task.cont
     
 
   def loadPlanets(self):
@@ -192,14 +212,30 @@ class World:
 
     #Exactly the same procedure as the sky sphere creation
     #The only difference is that a common sphere is used as the model
+
+
+    self.sun2 = loader.loadModel("models/planet_sphere")
+    self.sun2.reparentTo(render)
+    self.sun2.setScale(0.9)
+    self.filters = CommonFilters(base.win, base.cam)
+    #self.filters.setVolumetricLighting(self.sun2,32,0.7,0.99,0.05)
+
+    
     self.sun = loader.loadModel("models/planet_sphere")
     self.sun.setName("sun")
-    try:
-      self.sun_tex = loader.loadTexture("models/s%s.jpg"%(int(random.random()*6)))
-      self.sun.setTexture(self.sun_tex, 1)
-    except: pass
     self.sun.reparentTo(render)
     self.sun.setScale(2 * self.sizescale)
+    
+    self.tex1 = [loader.loadTexture("shaders/sunlayer1.png"),loader.loadTexture("shaders/sunlayer1n.png")]
+    self.tex2 = [loader.loadTexture("shaders/sunlayer2.png"),loader.loadTexture("shaders/sunlayer2n.png")]
+    
+    tex3 = loader.loadTexture("shaders/sungradient%s.png"%(int(random.random()*2)))
+    
+    self.sun.setShaderInput("tex1", self.tex1[0])
+    self.sun.setShaderInput("tex2", self.tex2[0])
+    self.sun.setShaderInput("fire", tex3)
+    shader = loader.loadShader("shaders/sun.sha")
+    self.sun.setShader(shader)
 
     #Creates a CollisionNode with a suitable name ('sunnode') and
     #attaches it to the sun pandaNode
@@ -406,6 +442,7 @@ class World:
       fromname = entry.getFromNodePath().getName()
       intoname = entry.getIntoNodePath().getName()
       anyname = fromname + intoname
+      
       if  "mtnode" in anyname:
         self.meteorcreated = False
       if intoname in "skynode,sunnode,bhnode,whnode,holenode" and fromname not in "skynode,sunnode,bhnode,whnode,holenode":
@@ -426,6 +463,8 @@ class World:
             entry.getIntoNodePath().getParent().detachNode()
             break
       if "mtnode" in fromname and "planetnode" in intoname:
+        self.particle = Particle(entry.getFromNodePath().getParent().getPos())
+        self.particles.append(self.particle)
         mtvel = Vec3(0,0,0)
         for j in range(len(self.objects)):
           if entry.getFromNodePath().getParent() == self.objects[j].node:
@@ -890,6 +929,14 @@ class SkillHandler (DirectObject):
     World.objects.append(Body(wormhole,0,Vec3(0,0,0),Vec3(0,0,0)))
     self.holes.append(wormhole)
 
+class Particle():
+  def __init__(self,pos):
+    self.particle = ParticleEffect()
+    self.particle.loadConfig("smoke.ptf")
+    self.particle.start(render)
+    self.particle.setScale(3)
+    self.particle.setPos(pos)
+    self.timer = 0
     
 class RandomHazardsHandler:
   def __init__ (self):
