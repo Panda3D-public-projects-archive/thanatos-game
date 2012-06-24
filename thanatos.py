@@ -15,7 +15,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 from direct.filter.CommonFilters import CommonFilters
 
-#VERSION 0.6.0
+#VERSION 0.7.0
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -34,7 +34,7 @@ class Body:
     
 
 class World:
-  def __init__(self):
+  def __init__(self,scenario):
     #Creates the main region which displays the solar system itself
     #Also creates a new mouseWatcherNode so mouse picking works
     #according to the region clicked during the mouse callback
@@ -80,7 +80,7 @@ class World:
     myAspect2d = self.myRender2d.attachNewNode(PGTop('myAspect2d'))
     myAspect2d.setScale(1.0 / aspectRatio, 1.0, 1.0)
     myAspect2d.node().setMouseWatcher(base.mouseWatcherNode)
-    imageObject = OnscreenImage(image = 'models/menu.jpg', scale =  (1,1,1), parent = self.myRender2d)
+    imageObject = OnscreenImage(image = 'images/menu.jpg', scale =  (1,1,1), parent = self.myRender2d)
     
     #Creates a line connecting planets when these are close enough to satisfy self.orbitscale.
     #Different values of self.caution define how far lines start to appear,
@@ -125,12 +125,6 @@ class World:
     #Creation of the plane defined by the solar system (normal (0,0,1) and point(0,0,0))
     self.plane = Plane(Vec3(0, 0, 1), Point3(0, 0, 0))
 
-    #Tries to load the soundtrack
-    try:
-      mySound = base.loader.loadSfx("m2.mp3")
-      mySound.play()
-    except: pass
-
     #For later use only
     self.debug = 0
 
@@ -143,10 +137,9 @@ class World:
     taskMgr.doMethodLater(0.01, self.refreshPlanets, 'refresh')
 
     #Run the functions responsible for creating the planets and configuring their rotations
-    
-    self.loadTypical()
-    #self.loadGiant()
-    #self.loadLow()
+    if scenario == 0: self.loadTypical()
+    elif scenario == 1: self.loadGiant()
+    else: self.loadLow()
     
     self.rotatePlanets()
     taskMgr.add(self.particleTask, "particles")
@@ -206,7 +199,7 @@ class World:
 
     #Makes it just a black sphere if the texture is not found , otherwise loads it.
     try:
-      self.sky_tex = loader.loadTexture("models/s.jpg")
+      self.sky_tex = loader.loadTexture("textures/s.jpg")
       self.sky.setTexture(self.sky_tex, 1)
     except:
       self.sky.setColor(0,0,0,0)
@@ -261,7 +254,7 @@ class World:
       self.planet = loader.loadModel("models/planet_sphere")
       self.planet.setName("planet%d"%i)
       try:
-        self.planet_tex = loader.loadTexture("models/p%s.jpg"%(int(random.random()*9)))
+        self.planet_tex = loader.loadTexture("textures/p%s.jpg"%(int(random.random()*9)))
         self.planet.setTexture(self.planet_tex, 1)
       except: pass
       self.planet.reparentTo(render)
@@ -328,7 +321,7 @@ class World:
 
     #Makes it just a black sphere if the texture is not found , otherwise loads it.
     try:
-      self.sky_tex = loader.loadTexture("models/s.jpg")
+      self.sky_tex = loader.loadTexture("textures/s.jpg")
       self.sky.setTexture(self.sky_tex, 1)
     except:
       self.sky.setColor(0,0,0,0)
@@ -383,7 +376,7 @@ class World:
       self.planet = loader.loadModel("models/planet_sphere")
       self.planet.setName("planet%d"%i)
       try:
-        self.planet_tex = loader.loadTexture("models/p%s.jpg"%(int(random.random()*9)))
+        self.planet_tex = loader.loadTexture("textures/p%s.jpg"%(int(random.random()*9)))
         self.planet.setTexture(self.planet_tex, 1)
       except: pass
       self.planet.reparentTo(render)
@@ -391,7 +384,6 @@ class World:
       #Two seeds are created randomly, one for the X pos and size, the other for the Y pos
       seed = random.random()
       seed2 = random.random()
-      print Point3((i+5) * self.orbitscale, 0, 0)
       self.planet.setPos(Point3((i+3)* 3 * self.orbitscale, 0, 0))
       #self.planet.setPos( (10*(seed-0.5) * self.orbitscale, 10*(seed2-0.5) * self.orbitscale, 0))
       self.planet.setScale((seed+0.3) * self.sizescale)
@@ -453,7 +445,7 @@ class World:
 
     #Makes it just a black sphere if the texture is not found , otherwise loads it.
     try:
-      self.sky_tex = loader.loadTexture("models/s.jpg")
+      self.sky_tex = loader.loadTexture("textures/s.jpg")
       self.sky.setTexture(self.sky_tex, 1)
     except:
       self.sky.setColor(0,0,0,0)
@@ -481,7 +473,7 @@ class World:
     self.tex1 = [loader.loadTexture("shaders/sunlayer1.png"),loader.loadTexture("shaders/sunlayer1n.png")]
     self.tex2 = [loader.loadTexture("shaders/sunlayer2.png"),loader.loadTexture("shaders/sunlayer2n.png")]
     
-    tex3 = loader.loadTexture("shaders/sungradient%s.png"%(int(random.random()*2)))
+    tex3 = loader.loadTexture("shaders/sungradient0.png")
     
     self.sun.setShaderInput("tex1", self.tex1[0])
     self.sun.setShaderInput("tex2", self.tex2[0])
@@ -508,7 +500,7 @@ class World:
       self.planet = loader.loadModel("models/planet_sphere")
       self.planet.setName("planet%d"%i)
       try:
-        self.planet_tex = loader.loadTexture("models/p%s.jpg"%(int(random.random()*9)))
+        self.planet_tex = loader.loadTexture("textures/p%s.jpg"%(int(random.random()*9)))
         self.planet.setTexture(self.planet_tex, 1)
       except: pass
       self.planet.reparentTo(render)
@@ -694,7 +686,10 @@ class World:
       fromname = entry.getFromNodePath().getName()
       intoname = entry.getIntoNodePath().getName()
       anyname = fromname + intoname
-      
+      if entry.getFromNodePath().getParent().getName() == "meteor":
+        Sound.stop(Sound.meteor)
+        Sound.play(Sound.col2)
+      else: Sound.play(Sound.col1)
       if  "mtnode" in anyname:
         self.meteorcreated = False
       if intoname in "skynode,sunnode,bhnode,whnode,holenode" and fromname not in "skynode,sunnode,bhnode,whnode,holenode":
@@ -983,6 +978,7 @@ class SkillHandler (DirectObject):
     elif status == "c": self.selectedSkill = "meteor"
     elif status == "v": self.selectedSkill = "wormhole"
     elif status == "space-down" and self.resource.checkResource(self.cost["slowmotion"]): #Check if there are enough resources for the skill
+      Sound.play(Sound.slow)
       self.slow = True
     elif status == "space-up": self.slow = False
  
@@ -1117,11 +1113,12 @@ class SkillHandler (DirectObject):
   def createMeteor(self, pos0, pos1, name):
     #Create a meteor object in the game world
     if name == "meteor":
+      Sound.play(Sound.meteor)
       self.dummy.node.setName("dummy")
     meteor = loader.loadModel("models/planet_sphere")
     meteor.setName(name)
     try:
-      meteor_tex = loader.loadTexture("models/bh.jpg")
+      meteor_tex = loader.loadTexture("textures/bh.jpg")
       meteor.setTexture(meteor_tex, 1)
     except: pass
     meteor.reparentTo(render)
@@ -1140,7 +1137,7 @@ class SkillHandler (DirectObject):
     blackhole = loader.loadModel("models/planet_sphere")
     blackhole.setName(name)
     try:
-      blackhole_tex = loader.loadTexture("models/bh.jpg")
+      blackhole_tex = loader.loadTexture("textures/bh.jpg")
       blackhole.setTexture(blackhole_tex, 1)
     except: pass
     blackhole.reparentTo(render)
@@ -1157,7 +1154,7 @@ class SkillHandler (DirectObject):
     whitehole = loader.loadModel("models/planet_sphere")
     whitehole.setName(name)
     try:
-      self.whitehole_tex = loader.loadTexture("models/bh.jpg")
+      self.whitehole_tex = loader.loadTexture("textures/bh.jpg")
       self.whitehole.setTexture(whitehole_tex, 1)
     except: pass
     whitehole.reparentTo(render)
@@ -1270,10 +1267,80 @@ class RandomHazardsHandler:
             World.vanishNode(self.randomHazard)
             self.randomHazard = ""
     return task.again
-    
 
-World = World()
-Skills = SkillHandler()
-Camera = CameraHandler()
-RandomHazards = RandomHazardsHandler()
+class StartMenu(DirectObject):
+  def __init__(self):
+    self.frame = DirectFrame(frameSize=(-0.5, 0.5, -0.5, 0.5), frameColor=(0.8,0.8,0.8,0), pos=(0,0,0))
+    self.frame2 = DirectFrame(parent=render2d, image="images/startmenu.jpg", sortOrder=(-1))
+    self.startButton = DirectButton(parent=self.frame, text="Play Typical", clickSound = Sound.click, command=self.startGame, extraArgs = [0], pos=(0,0,0.5), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
+    self.startButton = DirectButton(parent=self.frame, text="Play BlueGiant", clickSound = Sound.click, command=self.startGame, extraArgs = [1], pos=(0,0,0.4), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
+    self.startButton = DirectButton(parent=self.frame, text="Play Low", clickSound = Sound.click, command=self.startGame, extraArgs = [2], pos=(0,0,0.3), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
+    self.creditsButton = DirectButton(parent=self.frame, text="Credits", clickSound = Sound.click, command=self.showCredits, pos=(1.075,0,-0.6), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0))
+    self.quitButton = DirectButton(parent=self.frame, text="Quit", clickSound = Sound.click, command=sys.exit, pos=(1.13,0,-0.7), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0))
+    Sound.play(Sound.menu)
+    self.showMenu()
+    self.credits = Credits()
+  def showMenu(self):
+    self.frame.show()
+    self.frame2.show()  
+  def hideMenu(self):
+    self.frame.destroy()
+    self.frame2.destroy()     
+  def startGame(self,scenario):
+    global World, Skills, Camera, Sound
+    self.hideMenu()
+    Sound.stop(Sound.menu)
+    music = [Sound.typical,Sound.giant,Sound.low]
+    Sound.play(music[scenario])
+    World = World(scenario)
+    Skills = SkillHandler()
+    Camera = CameraHandler()
+    RandomHazards = RandomHazardsHandler()
+  def showCredits(self):
+    self.credits.show()
+
+class Credits(DirectObject):  
+  def __init__(self):
+    self.frame = DirectFrame(frameSize=(-1.4, 1.4, -0.7, 0.7), frameColor=(0.13,0.41,0.55,1), pos=(0,0,0))
+    self.headline = DirectLabel(parent=self.frame, text="THANATOS", scale=0.085, frameColor=(0,0,0,0), pos=(0,0,0.4))
+    text = "Pedro Savarese - Developer\n"
+    text += "Renan Araujo - Developer\n"
+    text += "Leonardo Mazza - Beta Tester\n"
+    text += "Music by Jean Michel Jarre"
+    self.Text = DirectFrame(parent=self.frame, text=text, scale=0.05, frameColor=(0,0,0,0), pos=(0,0,0.25), text_align=TextNode.ACenter)
+    self.backButton = DirectButton(parent=self.frame, text="Main Menu", clickSound = Sound.click, command=self.hide, pos=(0,0,-0.4), scale=0.07)
+    self.hide()   
+  def show(self):
+    self.frame.show()
+  def hide(self):
+    self.frame.hide()
+
+class SoundBox():
+  def __init__(self):
+    try:
+      self.typical = base.loader.loadSfx("sfx/typical.mp3")
+      self.menu = base.loader.loadSfx("sfx/menu.mp3")
+      self.giant = base.loader.loadSfx("sfx/giant.mp3")
+      self.low = base.loader.loadSfx("sfx/low.mp3")
+      self.slow = base.loader.loadSfx("sfx/slow.wav")
+      self.slow2 = base.loader.loadSfx("sfx/slow2.wav")
+      self.meteor = base.loader.loadSfx("sfx/meteor.wav")
+      self.col1 = base.loader.loadSfx("sfx/collarge.mp3")
+      self.col2 = base.loader.loadSfx("sfx/colmed.mp3")
+      self.click = base.loader.loadSfx("sfx/click.wav")
+      self.meteor.setVolume(0.5)
+    except: pass
+  def play(self,sound):
+    try:
+      sound.play()
+    except: pass
+  def stop(self,sound):
+    try:
+      sound.stop()
+    except: pass
+
+
+        
+Sound = SoundBox()
+StartMenu()
 run()
