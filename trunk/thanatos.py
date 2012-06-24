@@ -15,7 +15,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 from direct.filter.CommonFilters import CommonFilters
 
-#VERSION 0.7.0
+#VERSION 0.7.1
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -1287,7 +1287,7 @@ class StartMenu(DirectObject):
     self.frame.destroy()
     self.frame2.destroy()     
   def startGame(self,scenario):
-    global World, Skills, Camera, Sound
+    global World, Skills, Camera, Sound, RandomHazards
     self.hideMenu()
     Sound.stop(Sound.menu)
     music = [Sound.typical,Sound.giant,Sound.low]
