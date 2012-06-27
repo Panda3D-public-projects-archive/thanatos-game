@@ -32,7 +32,7 @@ class Body:
     self.vel = vel
     self.acel = acel
     
-
+    
 class World:
   def __init__(self,scenario):
     #Creates the main region which displays the solar system itself
@@ -44,43 +44,21 @@ class World:
     base.setBackgroundColor(0, 0, 0)
     
     #Same procedure as above, but this is for the minimap
-    self.minimapRegion = base.win.makeDisplayRegion(0.81, 0.99, 0.71, 0.98)
+    self.minimapRegion = base.win.makeDisplayRegion(0.815, 0.985, 0.71, 0.97)
     self.minimapRegion.setSort(1)
-    self.minimapRegion.setClearColor(VBase4(1, 1, 1, 1))
     self.minimapRegion.setClearColorActive(True)
+    self.minimapRegion.setClearColor(VBase4(1, 1, 1, 1))
     self.minimapRegion.setClearDepthActive(True)
     minimapc = Camera('minicam')
     minimapcNP = render.attachNewNode(minimapc)
     self.minimapRegion.setCamera(minimapcNP)
     minimapcNP.setPos(0, 0, 270)
     minimapcNP.setHpr(0,-90,0)
-    minimaplens = PerspectiveLens()
-    #minimaplens.setAspectRatio(minimapc.getAsp(base.win))
-    minimapc.setLens(minimaplens)
     base.setFrameRateMeter(True)
     
     #Enables particle effects
     base.enableParticles()
     self.particles = []
-    
-    #Same procedure as above, but this is for the menu
-    self.menuRegion = base.win.makeDisplayRegion(0.8,1,0,1)
-    self.menuRegion.setSort(0)
-    myCamera2d = NodePath(Camera('myCam2d'))
-    lens = OrthographicLens()
-    lens.setFilmSize(2, 2)
-    lens.setNearFar(-1000, 1000)
-    myCamera2d.node().setLens(lens)
-    self.myRender2d = NodePath('myRender2d')
-    self.myRender2d.setDepthTest(False)
-    self.myRender2d.setDepthWrite(False)
-    myCamera2d.reparentTo(self.myRender2d)
-    self.menuRegion.setCamera(myCamera2d)
-    aspectRatio = base.getAspectRatio()
-    myAspect2d = self.myRender2d.attachNewNode(PGTop('myAspect2d'))
-    myAspect2d.setScale(1.0 / aspectRatio, 1.0, 1.0)
-    myAspect2d.node().setMouseWatcher(base.mouseWatcherNode)
-    imageObject = OnscreenImage(image = 'images/menu.jpg', scale =  (1,1,1), parent = self.myRender2d)
     
     #Creates a line connecting planets when these are close enough to satisfy self.orbitscale.
     #Different values of self.caution define how far lines start to appear,
@@ -146,6 +124,7 @@ class World:
     taskMgr.add(self.timer, "timer")
     taskMgr.add(self.levelTask, "level")
     
+  
   def keyboardPress(self,status):
     #Callback for key presses
     #For now this only changes the caution level
@@ -419,8 +398,7 @@ class World:
       #Every object starts with zero acceleration
       self.objects[i].acel = Vec3(0,0,0)
 
-
-
+      
   def loadTypical(self):
     #This function is responsible for creating the bodies upon the start of the game
 
@@ -753,26 +731,36 @@ class CameraHandler(DirectObject):
   def   __init__(self): 
     base.disableMouse() 
     self.setupVars() 
-    self.setupCamera() 
+    self.setupCamera()
     self.setupInput() 
     self.setupTasks() 
        
   def setupVars(self):
     '''Initialize vars values'''
     self.initPitch = 10         #Anchor initial pitch (camera will start slighly from above)
-    self.initZoom = 250         #Camera's initial distance from anchor
-    self.zoomInLimit = 40       #Camera's minimum distance from anchor
-    self.zoomOutLimit = 600     #Camera's maximum distance from anchor
+    self.initZoom = 280         #Camera's initial distance from anchor
+    self.zoomInLimit = 60       #Camera's minimum distance from anchor
+    self.zoomOutLimit = 380     #Camera's maximum distance from anchor
     self.orbit = None 
     
   def setupCamera(self):
     '''Define an anchor node which camera will follow
        set camera and achor positions
     '''
-    self.camAnchor = render.attachNewNode("Cam Anchor") 
-    base.camera.reparentTo(self.camAnchor)
-    base.camera.setPos(0, -self.initZoom, 0)
-    base.camera.lookAt(self.camAnchor)
+    camNode = Camera('cam')
+    self.camera = NodePath(camNode)
+    World.mainRegion.setCamera(self.camera)
+    
+    #Configure camera lens
+    width = base.win.getProperties().getXSize() 
+    height = base.win.getProperties().getYSize() 
+    base.camLens.setAspectRatio(0.8*width/height) 
+    self.camera.node().setLens(base.camLens)
+    
+    self.camAnchor = render.attachNewNode("Cam Anchor")
+    self.camera.reparentTo(self.camAnchor)
+    self.camera.setPos(0, -self.initZoom, 0)
+    self.camera.lookAt(self.camAnchor)
     self.camAnchor.setP(-self.initPitch)
        
   def setupInput(self):
@@ -782,15 +770,23 @@ class CameraHandler(DirectObject):
     self.accept("wheel_down", self.setZoom, ['down']) 
     #Orbiting functions
     self.accept("mouse3", self.setOrbit, [True])
-    self.accept("mouse3-up", self.setOrbit, [False]) 
+    self.accept("mouse3-up", self.setOrbit, [False])
+    #Camera resizing function
+    self.accept(base.win.getWindowEvent(), self.onWindowEvent)
     
   def setupTasks(self):
     '''Add new task to be called every frame for camera orbiting'''
     taskMgr.add(self.cameraOrbit, "Camera Orbit")
 
+  def onWindowEvent(self, window):
+    '''Set the aspect ratio whenever there's a windows event (resize)'''
+    width = base.win.getProperties().getXSize() 
+    height = base.win.getProperties().getYSize() 
+    base.camLens.setAspectRatio(0.8*width/height)   
+    
   def setZoom(self, zoom):
     '''Method that zoom ir or out the camera'''
-    y = base.camera.getY()  #Get camera position
+    y = self.camera.getY()  #Get camera position
  
     #This block smooths the zoom movement by varying less if camera is closer
     if y > -60.0:
@@ -813,11 +809,11 @@ class CameraHandler(DirectObject):
       #Verify if the new position respects the zoom in limit
       if newY > -self.zoomInLimit: newY = -self.zoomInLimit
     else:
-      newY = base.camera.getY() - delta
+      newY = self.camera.getY() - delta
       #Verify if the new position respects the zoom in limit
       if newY < -self.zoomOutLimit: newY = -self.zoomOutLimit
       
-    base.camera.setY(newY)  #Set new position
+    self.camera.setY(newY)  #Set new position
     
   def setOrbit(self, orbit):
     '''Get the mouse position when clicked'''
@@ -890,7 +886,8 @@ class ResourceHandler:
     self.inc = 0.1      #Defines resources increased each frame
     
     #Print an onscreen text with the resources
-    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), pos = (0, 0.3), scale = (0.3,0.1), fg = (255,255,255,200), parent = World.myRender2d)
+    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), font=SideMenu.font, pos = (0, 0.18), scale = (0.25,0.085), fg = (255,255,255,200), parent = SideMenu.myRender2d)
+    self.bar = DirectWaitBar(parent=SideMenu.myRender2d, text = "", barColor=(0.86,0.34,0,0.9), frameColor=(0,0,0,0.8), frameSize=(-.8, .8, -.04, .04), value = int(self.res/2), pos = (.02,0,.06))
     
     #Add a task for resource related functions
     taskMgr.add(self.resourceTask, "Resource Task")
@@ -900,7 +897,8 @@ class ResourceHandler:
     self.gainRes(self.inc)   #Inscrease resources each frame
     
     self.resourceText.destroy()
-    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), pos = (0, 0.3), scale = (0.3,0.1), fg = (255,255,255,200), parent = World.myRender2d)
+    self.bar['value'] = int(self.res/2)
+    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), font=SideMenu.font, pos = (0, 0.18), scale = (0.25,0.085), fg = (255,255,255,200), parent = SideMenu.myRender2d)
     
     return task.cont
 
@@ -931,6 +929,9 @@ class SkillHandler (DirectObject):
   def __init__(self):
     #Initialize the resourse handler
     self.resource = ResourceHandler()
+    
+    #Setup the skills buttons on the sidemenu
+    self.setSkillsMenu()
     
     #Defines the cost of resources needed for each skill in a dictionary
     self.cost = {"blackhole" : 5, "whitehole" : 5, "meteor" : 5, "wormhole" : 20, "slowmotion" : 0.5}  #{blackhole, whitehole, meteor, wormhole, slow-motion}
@@ -968,7 +969,21 @@ class SkillHandler (DirectObject):
     self.accept('v', self.keyboardPress, ['v']) #select Wormhole
     self.accept('space', self.keyboardPress, ['space-down'])  #select slow-down
     self.accept('space-up', self.keyboardPress, ['space-up']) #release slow-down
-    
+  
+  def setSkillsMenu(self):
+    #Draw the skills buttons on the side menu
+    #Black Hole button
+    blackholeButton = DirectButton(parent=SideMenu.myRender2d, command=self.keyboardPress, extraArgs=["z"], pos = (-.46, 1, -.35), image='images/blackhole_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))  
+    OnscreenText(text = 'black\nhole(z)', font=SideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = blackholeButton)
+    #White Hole button
+    whiteholeButton = DirectButton(parent=SideMenu.myRender2d, command=self.keyboardPress, extraArgs=["x"], pos = (0.46, 1, -.35), image='images/whitehole_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))
+    OnscreenText(text = 'white\nhole(x)', font=SideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = whiteholeButton)
+    #Wormhole button
+    wormholeButton = DirectButton(parent=SideMenu.myRender2d, command=self.keyboardPress, extraArgs=["v"], pos = (-0.46, 1, -.7), image='images/wormhole_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))
+    OnscreenText(text = 'worm\nhole(v)', font=SideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = wormholeButton)
+    #Meteor button
+    meteorButton = DirectButton(parent=SideMenu.myRender2d, command=self.keyboardPress, extraArgs=["c"], pos = (0.46, 1, -.7), pressEffect=1,  image='images/meteor_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))
+    OnscreenText(text = 'meteor\n(c)', font=SideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = meteorButton)
     
   def keyboardPress(self, status):
     #Callback for key presses
@@ -1057,8 +1072,8 @@ class SkillHandler (DirectObject):
     #This is done by checking the intersection between the line
     #defined by the nearPoint and farPoint, and the plane itself.
     if World.plane.intersectsLine(pos3d, 
-                                 render.getRelativePoint(camera, nearPoint), 
-                                 render.getRelativePoint(camera, farPoint)):
+                                 render.getRelativePoint(Camera.camera, nearPoint), 
+                                 render.getRelativePoint(Camera.camera, farPoint)):
       return pos3d
     else:
       return False
@@ -1204,7 +1219,7 @@ class Particle():
 class RandomHazardsHandler:
   def __init__ (self):
     self.level = 1
-    self.levelText = OnscreenText(text = 'Level: ' + str(self.level), pos = (0, 0.2), scale = (0.3,0.1), fg = (255,255,255,200), parent = World.myRender2d)
+    self.levelText = OnscreenText(text = 'Level: ' + str(self.level), font=SideMenu.font, pos = (0, 0.3), scale = (0.3,0.1), fg = (255,255,255,200), parent = SideMenu.myRender2d)
     self.minFreq = 200
     self.maxFreq = 400
     self.minRadius = 100
@@ -1219,7 +1234,7 @@ class RandomHazardsHandler:
   def changeLevel(self):
     self.level += 1
     self.levelText.destroy()
-    self.levelText = OnscreenText(text = 'Level: ' + str(self.level), pos = (0, 0.2), scale = (0.3,0.1), fg = (255,255,255,200), parent = World.myRender2d)
+    self.levelText = OnscreenText(text = 'Level: ' + str(self.level), font=SideMenu.font, pos = (0, 0.3), scale = (0.3,0.1), fg = (255,255,255,200), parent = SideMenu.myRender2d)
     self.minRadius -= 10
     self.minFreq -= 10
     self.maxFreq -= 10
@@ -1254,7 +1269,7 @@ class RandomHazardsHandler:
       self.randomHazard = ""
         
         
-  def randomHazardTask(self, task):
+  def randomHazardTask(self, task):      
     if not self.randomHazard:   #check if there isn't any active hazard   
       self.freq -= 1            #countdown the number of frames before a hazard
       if self.freq == 0:
@@ -1268,53 +1283,102 @@ class RandomHazardsHandler:
             self.randomHazard = ""
     return task.again
 
+    
+class SideMenu (DirectObject):
+  def __init__(self):
+    self.font = loader.loadFont('radio_space.ttf')
+    self.setRender()
+    self.setMouseWatcher()
+    self.setCamera()
+    self.setMenu()
+    
+  def setRender(self):
+    self.myRender2d = NodePath('myRender2d')
+    self.myRender2d.setDepthTest(False)
+    self.menuRegion = base.win.makeDisplayRegion(0.8,1,0,1)
+    self.menuRegion.setSort(0)
+    
+  def setMouseWatcher(self):
+    self.mouseWatcher = MouseWatcher()
+    base.mouseWatcher.getParent().attachNewNode(self.mouseWatcher)
+    self.mouseWatcher.setDisplayRegion(self.menuRegion)
+    aspectRatio = base.getAspectRatio()
+    self.aspect2d = self.myRender2d.attachNewNode(PGTop('myAspect2d'))
+    self.aspect2d.setScale(1.0 / aspectRatio, 1.0, 1.0)
+    self.aspect2d.node().setMouseWatcher(self.mouseWatcher)
+  
+  def setCamera(self):
+    myCamera2d = NodePath(Camera('myCam2d'))
+    self.lens = OrthographicLens()
+    self.lens.setFilmSize(2, 2)
+    self.lens.setNearFar(-1000, 1000)
+    myCamera2d.node().setLens(self.lens)
+    myCamera2d.reparentTo(self.myRender2d)
+    self.menuRegion.setCamera(myCamera2d) 
+    
+  def setMenu(self):
+    imageObject = OnscreenImage(image='images/menu.png', scale=(1,1,1), parent=self.myRender2d)
+    OnscreenText(text = 'SKILLS', font=self.font, pos = (0, -0.2), scale = (0.2,0.08), fg = (255,255,255,200), parent = self.myRender2d)    
+    
+    
 class StartMenu(DirectObject):
   def __init__(self):
-    self.frame = DirectFrame(frameSize=(-0.5, 0.5, -0.5, 0.5), frameColor=(0.8,0.8,0.8,0), pos=(0,0,0))
-    self.frame2 = DirectFrame(parent=render2d, image="images/startmenu.jpg", sortOrder=(-1))
-    self.startButton = DirectButton(parent=self.frame, text="Play Typical", clickSound = Sound.click, command=self.startGame, extraArgs = [0], pos=(0,0,0.5), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
-    self.startButton = DirectButton(parent=self.frame, text="Play BlueGiant", clickSound = Sound.click, command=self.startGame, extraArgs = [1], pos=(0,0,0.4), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
-    self.startButton = DirectButton(parent=self.frame, text="Play Low", clickSound = Sound.click, command=self.startGame, extraArgs = [2], pos=(0,0,0.3), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
-    self.creditsButton = DirectButton(parent=self.frame, text="Credits", clickSound = Sound.click, command=self.showCredits, pos=(1.075,0,-0.6), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0))
-    self.quitButton = DirectButton(parent=self.frame, text="Quit", clickSound = Sound.click, command=sys.exit, pos=(1.13,0,-0.7), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0))
+    self.font = loader.loadFont('radio_space.ttf')
+    self.imageFrame = DirectFrame(parent=render2d, image="images/startmenu.jpg", sortOrder=(-1))
+    self.textFrame = DirectFrame(frameSize=(-0.5, 0.5, -0.5, 0.5), frameColor=(1,1,1,0), pos=(0,0,0))
+    self.startButton = DirectButton(parent=self.textFrame, text="Play Typical", text_font=self.font, clickSound = Sound.click, command=self.startGame, extraArgs = [0], pos=(.1,0,.2), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
+    self.startButton = DirectButton(parent=self.textFrame, text="Play BlueGiant", text_font=self.font, clickSound = Sound.click, command=self.startGame, extraArgs = [1], pos=(.1,0,.1), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
+    self.startButton = DirectButton(parent=self.textFrame, text="Play Low", text_font=self.font, clickSound = Sound.click, command=self.startGame, extraArgs = [2], pos=(.1,0,0), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
+    self.creditsButton = DirectButton(parent=self.textFrame, text="Credits", text_font=self.font, clickSound = Sound.click, command=self.showCredits, pos=(1.075,0,-0.6), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0))
+    self.quitButton = DirectButton(parent=self.textFrame, text="Quit", text_font=self.font, clickSound = Sound.click, command=sys.exit, pos=(1.13,0,-0.7), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0))
     Sound.play(Sound.menu)
+    self.imageFrame.show()
     self.showMenu()
-    self.credits = Credits()
+    self.createCredits()
+  
   def showMenu(self):
-    self.frame.show()
-    self.frame2.show()  
+    self.textFrame.show()
+  
   def hideMenu(self):
-    self.frame.destroy()
-    self.frame2.destroy()     
-  def startGame(self,scenario):
-    global World, Skills, Camera, Sound, RandomHazards
-    self.hideMenu()
-    Sound.stop(Sound.menu)
-    music = [Sound.typical,Sound.giant,Sound.low]
-    Sound.play(music[scenario])
-    World = World(scenario)
-    Skills = SkillHandler()
-    Camera = CameraHandler()
-    RandomHazards = RandomHazardsHandler()
-  def showCredits(self):
-    self.credits.show()
-
-class Credits(DirectObject):  
-  def __init__(self):
-    self.frame = DirectFrame(frameSize=(-1.4, 1.4, -0.7, 0.7), frameColor=(0.13,0.41,0.55,1), pos=(0,0,0))
-    self.headline = DirectLabel(parent=self.frame, text="THANATOS", scale=0.085, frameColor=(0,0,0,0), pos=(0,0,0.4))
+    self.textFrame.hide()
+  
+  def destroyMenu(self):
+    self.textFrame.destroy()
+    self.imageFrame.destroy()
+    self.creditFrame.destroy()
+    
+  def createCredits(self):
+    self.creditFrame = DirectFrame(frameSize=(-1, 1, -1, 1), frameColor=(0,0,0,0), pos=(0,0,0))
+    self.headline = DirectLabel(parent=self.creditFrame, text="THANATOS", text_font=self.font, text_fg=(1,1,1,1), scale=0.085, frameColor=(0,0,0,0), pos=(0,0,0.4))
     text = "Pedro Savarese - Developer\n"
     text += "Renan Araujo - Developer\n"
     text += "Leonardo Mazza - Beta Tester\n"
     text += "Music by Jean Michel Jarre"
-    self.Text = DirectFrame(parent=self.frame, text=text, scale=0.05, frameColor=(0,0,0,0), pos=(0,0,0.25), text_align=TextNode.ACenter)
-    self.backButton = DirectButton(parent=self.frame, text="Main Menu", clickSound = Sound.click, command=self.hide, pos=(0,0,-0.4), scale=0.07)
-    self.hide()   
-  def show(self):
-    self.frame.show()
-  def hide(self):
-    self.frame.hide()
+    self.text = DirectFrame(parent=self.creditFrame, text=text, scale=0.07, text_font=self.font, text_fg=(1,1,1,1), frameColor=(0,0,0,0), pos=(0,0,0.25), text_align=TextNode.ACenter)
+    self.back = DirectButton(parent=self.creditFrame, text="MAIN MENU", text_font=self.font, clickSound = Sound.click, command=self.hideCredits, pos=(0,0,-0.4), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0))
+    self.creditFrame.hide()
+    
+  def hideCredits(self):
+    self.creditFrame.hide()
+    self.showMenu()
+  
+  def showCredits(self):
+    self.hideMenu()
+    self.creditFrame.show()
+  
+  def startGame(self,scenario):
+    global World, Skills, Camera, Sound, RandomHazards, SideMenu
+    self.destroyMenu()
+    Sound.stop(Sound.menu)
+    music = [Sound.typical,Sound.giant,Sound.low]
+    Sound.play(music[scenario])
+    World = World(scenario)
+    SideMenu = SideMenu()
+    Skills = SkillHandler()
+    Camera = CameraHandler()
+    RandomHazards = RandomHazardsHandler()
 
+    
 class SoundBox():
   def __init__(self):
     try:
