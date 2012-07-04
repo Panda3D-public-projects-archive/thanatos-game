@@ -15,7 +15,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 #from direct.filter.CommonFilters import CommonFilters
 
-#VERSION 0.8.1
+#VERSION 0.8.2
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -1034,7 +1034,7 @@ class SkillHandler (DirectObject):
   def setSkillsMenu(self):
     #Draw the skills buttons on the side menu
     #Black Hole button
-    blackholeButton = DirectFrame(parent=sideMenu.myRender2d, pos = (-.46, 1, -.35), image='images/blackhole_button.png',scale=[0.4*0.7,1,0.4*0.2], borderWidth=(0,0))  
+    blackholeButton = DirectFrame(parent=sideMenu.myRender2d, pos = (-.46, 0,-.35), image='images/blackhole_button.png',scale=[0.4*0.7,1,0.4*0.2], borderWidth=(0,0))
     blackholeButton.setName("blackhole")
     OnscreenText(text = 'black\nhole(z)', font=sideMenu.font, pos = (0, -1.6), scale = 0.6, fg = (255,255,255,200), parent = blackholeButton)
     #White Hole button
@@ -1392,7 +1392,7 @@ class SideMenu (DirectObject):
     self.menuRegion.setCamera(myCamera2d) 
     
   def setMenu(self):
-    imageObject = OnscreenImage(image='images/menu.png', scale=(1,1,1), parent=self.myRender2d)
+    self.menu = OnscreenImage(image='images/menu.png', scale=(1,0,1), parent=self.myRender2d)
     OnscreenText(text = 'SKILLS', font=self.font, pos = (0, -0.2), scale = (0.2,0.08), fg = (255,255,255,200), parent = self.myRender2d)    
     
     
