@@ -13,9 +13,9 @@ from pandac.PandaModules import CollisionHandlerQueue, CollisionNode, CollisionS
 from direct.showbase.ShowBase import Plane, ShowBase, Vec3, Point3, CardMaker 
 from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
-from direct.filter.CommonFilters import CommonFilters
+#from direct.filter.CommonFilters import CommonFilters
 
-#VERSION 0.8.0
+#VERSION 0.8.1
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -1034,17 +1034,22 @@ class SkillHandler (DirectObject):
   def setSkillsMenu(self):
     #Draw the skills buttons on the side menu
     #Black Hole button
-    blackholeButton = DirectButton(parent=sideMenu.myRender2d, command=self.keyboardPress, extraArgs=["z"], pos = (-.46, 1, -.35), image='images/blackhole_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))  
-    OnscreenText(text = 'black\nhole(z)', font=sideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = blackholeButton)
+    blackholeButton = DirectFrame(parent=sideMenu.myRender2d, pos = (-.46, 1, -.35), image='images/blackhole_button.png',scale=[0.4*0.7,1,0.4*0.2], borderWidth=(0,0))  
+    blackholeButton.setName("blackhole")
+    OnscreenText(text = 'black\nhole(z)', font=sideMenu.font, pos = (0, -1.6), scale = 0.6, fg = (255,255,255,200), parent = blackholeButton)
     #White Hole button
-    whiteholeButton = DirectButton(parent=sideMenu.myRender2d, command=self.keyboardPress, extraArgs=["x"], pos = (0.46, 1, -.35), image='images/whitehole_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))
-    OnscreenText(text = 'white\nhole(x)', font=sideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = whiteholeButton)
+    whiteholeButton = DirectFrame(parent=sideMenu.myRender2d, pos = (0.46, 1, -.35), image='images/whitehole_button.png', scale=[0.4*0.7,1,0.4*0.2], borderWidth=(0,0))
+    whiteholeButton.setName("whitehole")
+    OnscreenText(text = 'white\nhole(x)', font=sideMenu.font, pos = (0, -1.6), scale = 0.6, fg = (255,255,255,200), parent = whiteholeButton)
     #Wormhole button
-    wormholeButton = DirectButton(parent=sideMenu.myRender2d, command=self.keyboardPress, extraArgs=["v"], pos = (-0.46, 1, -.7), image='images/wormhole_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))
-    OnscreenText(text = 'worm\nhole(v)', font=sideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = wormholeButton)
+    wormholeButton = DirectFrame(parent=sideMenu.myRender2d, pos = (-0.46, 1, -.7), image='images/wormhole_button.png', scale=[0.4*0.7,1,0.4*0.2], borderWidth=(0,0))
+    wormholeButton.setName("wormhole")
+    OnscreenText(text = 'worm\nhole(v)', font=sideMenu.font, pos = (0, -1.6), scale = 0.6, fg = (255,255,255,200), parent = wormholeButton)
     #Meteor button
-    meteorButton = DirectButton(parent=sideMenu.myRender2d, command=self.keyboardPress, extraArgs=["c"], pos = (0.46, 1, -.7), pressEffect=1,  image='images/meteor_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))
-    OnscreenText(text = 'meteor\n(c)', font=sideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = meteorButton)
+    meteorButton = DirectFrame(parent=sideMenu.myRender2d, pos = (0.46, 1, -.7), image='images/meteor_button.png', scale=[0.4*0.7,1,0.4*0.2], borderWidth=(0,0))
+    meteorButton.setName("meteor")
+    OnscreenText(text = 'meteor\n(c)', font=sideMenu.font, pos = (0, -1.6), scale = 0.6, fg = (255,255,255,200), parent = meteorButton)
+    self.buttons = [blackholeButton,whiteholeButton,wormholeButton,meteorButton]
     
   def keyboardPress(self, status):
     #Callback for key presses
@@ -1071,12 +1076,20 @@ class SkillHandler (DirectObject):
         world.vanishNode(self.activeSkill)
         self.activeSkill = ""
     return task.again
-   
+
+  def checkButton(self,pos):
+    for i in self.buttons:
+      if (i.getPos()[0] - i.getScale()[0] < pos[0] < i.getPos()[0] + i.getScale()[0]) and (i.getPos()[2] - i.getScale()[2] < pos[1] < i.getPos()[2] + i.getScale()[2]): 
+        self.selectedSkill = i.getName()   
  
   def leftMouseClick(self, status):
     #This functions is the callback for a mouse click
     #All major skills (hazards) are going to be modelated here
     #Check if mouse is pressed down and if there are enough resources to use the selected skill
+
+    if sideMenu.mouseWatcher.hasMouse() and status == "up":
+      self.checkButton(sideMenu.mouseWatcher.getMouse())
+
     if base.mouseWatcherNode.hasMouse() and status == "down" and self.resource.checkResource(self.cost[self.selectedSkill]):
       #Get the 3d position of the mouse click
       pos3d = self.getPos3d(base.mouseWatcherNode.getMouse())
@@ -1438,9 +1451,9 @@ class StartMenu(DirectObject):
     sideMenu = SideMenu()
     Skills = SkillHandler()
     Camera = CameraHandler()
-    loadPrcFile("config/Config.prc")
-    world.filters = CommonFilters(base.win, Camera.camera)
-    world.filters.setVolumetricLighting(world.sun2,32,0.7,0.95,0.05)
+    #loadPrcFile("config/Config.prc")
+    #world.filters = CommonFilters(base.win, Camera.camera)
+    #world.filters.setVolumetricLighting(world.sun2,32,0.7,0.95,0.05)
     RandomHazards = RandomHazardsHandler()
     
 class SoundBox():
