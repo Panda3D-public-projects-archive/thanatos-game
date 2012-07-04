@@ -15,7 +15,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 from direct.filter.CommonFilters import CommonFilters
 
-#VERSION 0.7.1
+#VERSION 0.7.2
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -189,9 +189,6 @@ class World:
     self.sun2 = loader.loadModel("models/planet_sphere")
     self.sun2.reparentTo(render)
     self.sun2.setScale(0.9)
-    self.filters = CommonFilters(base.win, base.cam)
-    #self.filters.setVolumetricLighting(self.sun2,32,0.7,0.99,0.05)
-
     
     self.sun = loader.loadModel("models/planet_sphere")
     self.sun.setName("sun")
@@ -311,8 +308,6 @@ class World:
     self.sun2 = loader.loadModel("models/planet_sphere")
     self.sun2.reparentTo(render)
     self.sun2.setScale(0.9)
-    self.filters = CommonFilters(base.win, base.cam)
-    #self.filters.setVolumetricLighting(self.sun2,32,0.7,0.99,0.05)
 
     
     self.sun = loader.loadModel("models/planet_sphere")
@@ -434,8 +429,6 @@ class World:
     self.sun2 = loader.loadModel("models/planet_sphere")
     self.sun2.reparentTo(render)
     self.sun2.setScale(0.9)
-    self.filters = CommonFilters(base.win, base.cam)
-    #self.filters.setVolumetricLighting(self.sun2,32,0.7,0.99,0.05)
 
     
     self.sun = loader.loadModel("models/planet_sphere")
@@ -1384,6 +1377,9 @@ class StartMenu(DirectObject):
     SideMenu = SideMenu()
     Skills = SkillHandler()
     Camera = CameraHandler()
+    loadPrcFile("config/Config.prc")
+    World.filters = CommonFilters(base.win, Camera.camera)
+    World.filters.setVolumetricLighting(World.sun2,32,0.7,0.95,0.05)
     RandomHazards = RandomHazardsHandler()
 
     
