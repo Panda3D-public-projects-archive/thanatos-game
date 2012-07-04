@@ -15,7 +15,7 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 #from direct.filter.CommonFilters import CommonFilters
 
-#VERSION 0.8.2
+#VERSION 0.8.3
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
@@ -164,6 +164,7 @@ class World (DirectObject):
     self.pointFrame.destroy()
     self.levelFrame.destroy()
     self.textFrame.destroy()
+    self.mainRegion.setDimensions(0,0.8,0,1)
 
   def gameOver(self):
       points = self.points
@@ -171,13 +172,14 @@ class World (DirectObject):
       music = [Sound.typical,Sound.giant,Sound.low]
       Sound.stop(music[self.scenario])
       self.font = loader.loadFont('radio_space.ttf')
-      self.imageFrame = DirectFrame(parent=render2d, image="images/startmenu.jpg", sortOrder=(-1))
+      self.mainRegion.setDimensions(0,1,0,1)
+      self.imageFrame = DirectFrame(parent = render2d, image="images/startmenu.jpg", sortOrder=(-1))
       self.levelFrame = DirectFrame(text_scale=0.15, text_fg=(1,1,1,1), text = "Level: %s"%level, frameSize=(-0.5, 0.5, -0.5, 0.5), frameColor=(1,1,1,0), pos=(0,0,0.65), text_align=TextNode.ACenter)      
       self.pointFrame = DirectFrame(text_scale=0.15, text_fg=(1,1,1,1), text = "Points: %s"%points, frameSize=(-0.5, 0.5, -0.5, 0.5), frameColor=(1,1,1,0), pos=(0,0,0.5), text_align=TextNode.ACenter)
-      self.textFrame = DirectFrame(frameSize=(-0.5, 0.5, -0.5, 0.5), frameColor=(1,1,1,0), pos=(-1,0,0))
-      self.startButton = DirectButton(parent=self.textFrame, text="Play Typical", text_font=self.font, clickSound = Sound.click, command=self.restart, extraArgs=[0], pos=(.1,0,-0.2), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0))
-      self.startButton = DirectButton(parent=self.textFrame, text="Play BlueGiant", text_font=self.font, clickSound = Sound.click, command=self.restart, extraArgs=[1], pos=(.1,0,0), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ARight, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
-      self.startButton = DirectButton(parent=self.textFrame, text="Play Low", text_font=self.font, clickSound = Sound.click, command=self.restart, extraArgs=[2], pos=(.1,0,.2), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ARight, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
+      self.textFrame = DirectFrame(frameSize=(-0.5, 0.5, -0.5, 0.5), frameColor=(1,1,1,0), pos=(0,0,0))
+      self.startButton = DirectButton(parent=self.textFrame, text="Play Typical", text_font=self.font, clickSound = Sound.click, command=self.restart, extraArgs=[0], pos=(0,0,0.2), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0))
+      self.startButton = DirectButton(parent=self.textFrame, text="Play BlueGiant", text_font=self.font, clickSound = Sound.click, command=self.restart, extraArgs=[1], pos=(0,0,0), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
+      self.startButton = DirectButton(parent=self.textFrame, text="Play Low", text_font=self.font, clickSound = Sound.click, command=self.restart, extraArgs=[2], pos=(0,0,-0.2), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
       self.imageFrame.show()
       self.textFrame.show()
     
@@ -1401,7 +1403,7 @@ class StartMenu(DirectObject):
     self.font = loader.loadFont('radio_space.ttf')
     self.imageFrame = DirectFrame(parent=render2d, image="images/startmenu.jpg", sortOrder=(-1))
     self.textFrame = DirectFrame(frameSize=(-0.5, 0.5, -0.5, 0.5), frameColor=(1,1,1,0), pos=(0,0,0))
-    self.startButton = DirectButton(parent=self.textFrame, text="Play Typical", text_font=self.font, clickSound = Sound.click, command=self.startGame, extraArgs = [0], pos=(.1,0,.2), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
+    self.startButton = DirectButton(parent=self.textFrame, text="Play Typical", text_font=self.font, clickSound = Sound.click, command=self.startGame, extraArgs = [0], pos=(.1,0,.2), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0))
     self.startButton = DirectButton(parent=self.textFrame, text="Play BlueGiant", text_font=self.font, clickSound = Sound.click, command=self.startGame, extraArgs = [1], pos=(.1,0,.1), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
     self.startButton = DirectButton(parent=self.textFrame, text="Play Low", text_font=self.font, clickSound = Sound.click, command=self.startGame, extraArgs = [2], pos=(.1,0,0), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
     self.creditsButton = DirectButton(parent=self.textFrame, text="Credits", text_font=self.font, clickSound = Sound.click, command=self.showCredits, pos=(1.075,0,-0.6), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0))
