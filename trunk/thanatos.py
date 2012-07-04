@@ -15,11 +15,10 @@ from direct.directbase.DirectStart import *
 from pandac.PandaModules import *
 from direct.filter.CommonFilters import CommonFilters
 
-#VERSION 0.7.2
+#VERSION 0.8.0
 #THIRD VERSION BUMP FOR ANY CHANGE
 #SECOND VERSION BUMP IF A MAJOR FEATURE HAS BEEN DONE WITH
 #FIRST VERSION BUMP IF THE GAME IS RC
-
 
 class Body:
   #Wrapper of the pandaNode class to add extra attributes
@@ -33,7 +32,7 @@ class Body:
     self.acel = acel
     
     
-class World:
+class World (DirectObject):
   def __init__(self,scenario):
     #Creates the main region which displays the solar system itself
     #Also creates a new mouseWatcherNode so mouse picking works
@@ -42,6 +41,8 @@ class World:
     self.mainRegion.setDimensions(0,0.8,0,1)
     base.mouseWatcherNode.setDisplayRegion(self.mainRegion)
     base.setBackgroundColor(0, 0, 0)
+
+    self.scenario = scenario
     
     #Same procedure as above, but this is for the minimap
     self.minimapRegion = base.win.makeDisplayRegion(0.815, 0.985, 0.71, 0.97)
@@ -53,7 +54,8 @@ class World:
     
     #Enables particle effects
     base.enableParticles()
-    self.particles = []
+
+    self.accept("Game Over",self.gameOver)
     
     #Creates a line connecting planets when these are close enough to satisfy self.orbitscale.
     #Different values of self.caution define how far lines start to appear,
@@ -64,20 +66,10 @@ class World:
     self.orbitlines.setThickness(1)
     self.orbitlines.setColor(Vec4(0,1,0,1))
     self.orbitsegnode = NodePath("")
-    
-    self.sizescale = 1.6
-    self.orbitscale = 10
-    self.progress = 0
-    
+
     #Define game pace
     self.pace = 1
-    
-    #Objects is the main array that keeps trace of all the Body type objects
-    self.objects = []
 
-    #Initialize parameter for the meteor creation routines
-    self.meteorcreated = False
-    
     #Unimportant parameters
     self.yearscale = 60
     self.dayscale = self.yearscale / 365.0 * 5
@@ -109,6 +101,8 @@ class World:
     #taskMgr.add(self.refreshPlanets, 'refresh')
     taskMgr.doMethodLater(0.01, self.refreshPlanets, 'refresh')
 
+    self.loadVariables()
+
     #Run the functions responsible for creating the planets and configuring their rotations
     if scenario == 0: self.loadTypical()
     elif scenario == 1: self.loadGiant()
@@ -118,7 +112,25 @@ class World:
     taskMgr.add(self.particleTask, "particles")
     taskMgr.add(self.timer, "timer")
     taskMgr.add(self.levelTask, "level")
+    taskMgr.doMethodLater(1, self.pointCounter, 'point')
+
+  def loadVariables(self):
+    self.particles = []
+    self.sizescale = 1.6
+    self.orbitscale = 10
+    self.progress = 0
+    self.points = 0
     
+    #Objects is the main array that keeps trace of all the Body type objects
+    self.objects = []
+      
+    #Initialize parameter for the meteor creation routines
+    self.meteorcreated = False
+
+
+  def pointCounter(self,task):
+      self.points += self.rate*RandomHazards.level*self.n
+      return task.again
   
   def keyboardPress(self,status):
     #Callback for key presses
@@ -133,6 +145,42 @@ class World:
     self.sun.setShaderInput("time", task.time)
     return task.cont
 
+  def restart(self, scenario):
+    taskMgr.remove("timer")
+    self.sky.removeNode()
+    self.sun2.detachNode()
+    for i in self.objects:
+      i.node.removeNode()
+    self.loadVariables()
+    self.scenario = scenario
+    music = [Sound.typical,Sound.giant,Sound.low]
+    Sound.play(music[scenario])
+    if scenario == 0: self.loadTypical()
+    elif scenario == 1: self.loadGiant()
+    else: self.loadLow()
+    taskMgr.add(self.timer, "timer")
+    taskMgr.add(self.levelTask, "level")
+    self.imageFrame.destroy()
+    self.pointFrame.destroy()
+    self.levelFrame.destroy()
+    self.textFrame.destroy()
+
+  def gameOver(self):
+      points = self.points
+      level = RandomHazards.level
+      music = [Sound.typical,Sound.giant,Sound.low]
+      Sound.stop(music[self.scenario])
+      self.font = loader.loadFont('radio_space.ttf')
+      self.imageFrame = DirectFrame(parent=render2d, image="images/startmenu.jpg", sortOrder=(-1))
+      self.levelFrame = DirectFrame(text_scale=0.15, text_fg=(1,1,1,1), text = "Level: %s"%level, frameSize=(-0.5, 0.5, -0.5, 0.5), frameColor=(1,1,1,0), pos=(0,0,0.65), text_align=TextNode.ACenter)      
+      self.pointFrame = DirectFrame(text_scale=0.15, text_fg=(1,1,1,1), text = "Points: %s"%points, frameSize=(-0.5, 0.5, -0.5, 0.5), frameColor=(1,1,1,0), pos=(0,0,0.5), text_align=TextNode.ACenter)
+      self.textFrame = DirectFrame(frameSize=(-0.5, 0.5, -0.5, 0.5), frameColor=(1,1,1,0), pos=(-1,0,0))
+      self.startButton = DirectButton(parent=self.textFrame, text="Play Typical", text_font=self.font, clickSound = Sound.click, command=self.restart, extraArgs=[0], pos=(.1,0,-0.2), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ACenter, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0))
+      self.startButton = DirectButton(parent=self.textFrame, text="Play BlueGiant", text_font=self.font, clickSound = Sound.click, command=self.restart, extraArgs=[1], pos=(.1,0,0), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ARight, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
+      self.startButton = DirectButton(parent=self.textFrame, text="Play Low", text_font=self.font, clickSound = Sound.click, command=self.restart, extraArgs=[2], pos=(.1,0,.2), text_scale=0.08, text_fg=(1,1,1,1), text_align=TextNode.ARight, borderWidth=(0.005,0.005), frameSize=(-0.25, 0.25, -0.03, 0.06), frameColor=(0.8,0.8,0.8,0)) 
+      self.imageFrame.show()
+      self.textFrame.show()
+    
   def levelTask(self, task):
     self.progress += 1
     if self.progress > 3600:
@@ -150,6 +198,7 @@ class World:
 
     
   def loadLow(self):
+    self.rate = 1.5/8
     #This function is responsible for creating the bodies upon the start of the game
     
     #How many times the prediction loop will be ran
@@ -269,6 +318,7 @@ class World:
       self.objects[i].acel = Vec3(0,0,0)
 
   def loadGiant(self):
+    self.rate = 3
     #This function is responsible for creating the bodies upon the start of the game
 
     #How many times the prediction loop will be ran
@@ -390,6 +440,7 @@ class World:
 
       
   def loadTypical(self):
+    self.rate = 1.0/4
     #This function is responsible for creating the bodies upon the start of the game
 
     #How many times the prediction loop will be ran
@@ -516,6 +567,9 @@ class World:
     #The acceleration one body applies to another is given by
     #the equation 'a = G*M/(r^2). But of course we just ignore the Gravitational constant
 
+    if self.n == 0:
+      messenger.send("Game Over")
+      self.n = -1
 
     #'i' is the Body that we are calculating its accel and vel for
     for i in range(len(self.objects)):
@@ -662,8 +716,9 @@ class World:
         Particle("planet",entry.getFromNodePath().getParent())
         for j in range(len(self.objects)):
           if entry.getFromNodePath().getParent() == self.objects[j].node:
+            if "planetnode" in fromname: self.n -= 1
             self.objects.pop(j)
-            entry.getFromNodePath().getParent().detachNode()
+            entry.getFromNodePath().getParent().removeNode()
             break
       if "planetnode" in fromname and "planetnode" in intoname:
         if entry.getFromNodePath().getParent().getScale()[0] > entry.getIntoNodePath().getParent().getScale()[0]:
@@ -672,12 +727,14 @@ class World:
         for j in range(len(self.objects)):
           if entry.getFromNodePath().getParent() == self.objects[j].node:
             self.objects.pop(j)
-            entry.getFromNodePath().getParent().detachNode()
+            entry.getFromNodePath().getParent().removeNode()
+            if "planetnode" in fromname: self.n -= 1
             break
         for j in range(len(self.objects)):
           if entry.getIntoNodePath().getParent() == self.objects[j].node:
             self.objects.pop(j)
-            entry.getIntoNodePath().getParent().detachNode()
+            entry.getIntoNodePath().getParent().removeNode()
+            if "planetnode" in fromname: self.n -= 1
             break
       if "mtnode" in fromname and "planetnode" in intoname:
         Particle("meteor",entry.getIntoNodePath().getParent())
@@ -686,7 +743,7 @@ class World:
           if entry.getFromNodePath().getParent() == self.objects[j].node:
             mtvel = self.objects[j].vel * self.objects[j].mass
             self.objects.pop(j)
-            entry.getFromNodePath().getParent().detachNode()
+            entry.getFromNodePath().getParent().removeNode()
             break
         for j in range(len(self.objects)):
           if entry.getIntoNodePath().getParent() == self.objects[j].node:
@@ -709,7 +766,7 @@ class World:
     #End with a black or white hole creation
     for i in range(len(self.objects)):
       if self.objects[i].node.getName() == name:
-        self.objects[i].node.detachNode()
+        self.objects[i].node.removeNode()
         self.objects.pop(i)
         break
         
@@ -738,12 +795,12 @@ class CameraHandler(DirectObject):
     #Creating main camera
     camNode = Camera('cam')
     self.camera = NodePath(camNode)
-    World.mainRegion.setCamera(self.camera)
+    world.mainRegion.setCamera(self.camera)
     
     #Creating mini map camera
     self.miniCam = Camera('minicam')
     minimapcNP = render.attachNewNode(self.miniCam)
-    World.minimapRegion.setCamera(minimapcNP)
+    world.minimapRegion.setCamera(minimapcNP)
     
     #Configure cameras lens
     width = base.win.getProperties().getXSize()
@@ -887,8 +944,9 @@ class ResourceHandler:
     self.inc = 0.1      #Defines resources increased each frame
     
     #Print an onscreen text with the resources
-    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), font=SideMenu.font, pos = (0, 0.18), scale = (0.25,0.085), fg = (255,255,255,200), parent = SideMenu.myRender2d)
-    self.bar = DirectWaitBar(parent=SideMenu.myRender2d, text = "", barColor=(0.86,0.34,0,0.9), frameColor=(0,0,0,0.8), frameSize=(-.8, .8, -.04, .04), value = int(self.res/2), pos = (.02,0,.06))
+    self.pointText = OnscreenText(text = 'Points:' + str(int(world.points)), font=sideMenu.font, pos = (0, -0.05), scale = (0.25,0.085), fg = (255,255,255,200), parent = sideMenu.myRender2d)
+    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), font=sideMenu.font, pos = (0, 0.18), scale = (0.25,0.085), fg = (255,255,255,200), parent = sideMenu.myRender2d)
+    self.bar = DirectWaitBar(parent=sideMenu.myRender2d, text = "", barColor=(0.86,0.34,0,0.9), frameColor=(0,0,0,0.8), frameSize=(-.8, .8, -.04, .04), value = int(self.res/2), pos = (.02,0,.06))
     
     #Add a task for resource related functions
     taskMgr.add(self.resourceTask, "Resource Task")
@@ -898,8 +956,10 @@ class ResourceHandler:
     self.gainRes(self.inc)   #Inscrease resources each frame
     
     self.resourceText.destroy()
+    self.pointText.destroy()
     self.bar['value'] = int(self.res/2)
-    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), font=SideMenu.font, pos = (0, 0.18), scale = (0.25,0.085), fg = (255,255,255,200), parent = SideMenu.myRender2d)
+    self.pointText = OnscreenText(text = 'Points:' + str(int(world.points)), font=sideMenu.font, pos = (0, -0.05), scale = (0.25,0.085), fg = (255,255,255,200), parent = sideMenu.myRender2d)
+    self.resourceText = OnscreenText(text = 'PP: ' + str(int(self.res)), font=sideMenu.font, pos = (0, 0.18), scale = (0.25,0.085), fg = (255,255,255,200), parent = sideMenu.myRender2d)
     
     return task.cont
 
@@ -974,17 +1034,17 @@ class SkillHandler (DirectObject):
   def setSkillsMenu(self):
     #Draw the skills buttons on the side menu
     #Black Hole button
-    blackholeButton = DirectButton(parent=SideMenu.myRender2d, command=self.keyboardPress, extraArgs=["z"], pos = (-.46, 1, -.35), image='images/blackhole_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))  
-    OnscreenText(text = 'black\nhole(z)', font=SideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = blackholeButton)
+    blackholeButton = DirectButton(parent=sideMenu.myRender2d, command=self.keyboardPress, extraArgs=["z"], pos = (-.46, 1, -.35), image='images/blackhole_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))  
+    OnscreenText(text = 'black\nhole(z)', font=sideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = blackholeButton)
     #White Hole button
-    whiteholeButton = DirectButton(parent=SideMenu.myRender2d, command=self.keyboardPress, extraArgs=["x"], pos = (0.46, 1, -.35), image='images/whitehole_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))
-    OnscreenText(text = 'white\nhole(x)', font=SideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = whiteholeButton)
+    whiteholeButton = DirectButton(parent=sideMenu.myRender2d, command=self.keyboardPress, extraArgs=["x"], pos = (0.46, 1, -.35), image='images/whitehole_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))
+    OnscreenText(text = 'white\nhole(x)', font=sideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = whiteholeButton)
     #Wormhole button
-    wormholeButton = DirectButton(parent=SideMenu.myRender2d, command=self.keyboardPress, extraArgs=["v"], pos = (-0.46, 1, -.7), image='images/wormhole_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))
-    OnscreenText(text = 'worm\nhole(v)', font=SideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = wormholeButton)
+    wormholeButton = DirectButton(parent=sideMenu.myRender2d, command=self.keyboardPress, extraArgs=["v"], pos = (-0.46, 1, -.7), image='images/wormhole_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))
+    OnscreenText(text = 'worm\nhole(v)', font=sideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = wormholeButton)
     #Meteor button
-    meteorButton = DirectButton(parent=SideMenu.myRender2d, command=self.keyboardPress, extraArgs=["c"], pos = (0.46, 1, -.7), pressEffect=1,  image='images/meteor_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))
-    OnscreenText(text = 'meteor\n(c)', font=SideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = meteorButton)
+    meteorButton = DirectButton(parent=sideMenu.myRender2d, command=self.keyboardPress, extraArgs=["c"], pos = (0.46, 1, -.7), pressEffect=1,  image='images/meteor_button.png', image_scale=(0.7,1,0.2),scale=0.4, borderWidth=(0,0))
+    OnscreenText(text = 'meteor\n(c)', font=sideMenu.font, pos = (0, -0.32), scale = (0.4,0.13), fg = (255,255,255,200), parent = meteorButton)
     
   def keyboardPress(self, status):
     #Callback for key presses
@@ -1008,7 +1068,7 @@ class SkillHandler (DirectObject):
         self.resource.spendRes(self.cost[self.activeSkill])
       else: 
         #If there are no resources end the skill use
-        World.vanishNode(self.activeSkill)
+        world.vanishNode(self.activeSkill)
         self.activeSkill = ""
     return task.again
    
@@ -1032,7 +1092,7 @@ class SkillHandler (DirectObject):
           self.activeSkill = self.selectedSkill
           self.createWhiteHole(pos3d, self.activeSkill)
           
-        elif self.selectedSkill == "meteor" and not World.meteorcreated and self.holes:
+        elif self.selectedSkill == "meteor" and not world.meteorcreated and self.holes:
           #Create the meteor path prediction
           self.activeSkill = self.selectedSkill
           self.setupMeteorPath(pos3d)
@@ -1046,13 +1106,13 @@ class SkillHandler (DirectObject):
       
       if self.activeSkill in ["blackhole", "whitehole"]:
         #Destroy the black or white hole
-        World.vanishNode(self.activeSkill)
+        world.vanishNode(self.activeSkill)
         self.activeSkill = ""
         
-      elif self.activeSkill == "meteor" and not World.meteorcreated:
+      elif self.activeSkill == "meteor" and not world.meteorcreated:
         #Create meteor.
         self.createMeteor(self.meteorvector[0], self.meteorvector[1], self.activeSkill)
-        World.meteorcreated = True
+        world.meteorcreated = True
         self.resource.spendRes(self.cost[self.activeSkill])
         self.activeSkill = ""
 
@@ -1072,7 +1132,7 @@ class SkillHandler (DirectObject):
     #Fills pos3d with the 3d position of picked position
     #This is done by checking the intersection between the line
     #defined by the nearPoint and farPoint, and the plane itself.
-    if World.plane.intersectsLine(pos3d, 
+    if world.plane.intersectsLine(pos3d, 
                                  render.getRelativePoint(Camera.camera, nearPoint), 
                                  render.getRelativePoint(Camera.camera, farPoint)):
       return pos3d
@@ -1082,11 +1142,11 @@ class SkillHandler (DirectObject):
         
   def slowMotion (self, task):
     #Slows the time or turns it a little back to normal if the player is holding space
-    if self.slow == True and World.pace > 0.2:
+    if self.slow == True and world.pace > 0.2:
       self.resource.spendRes(self.cost["slowmotion"])
-      World.pace = World.pace - 0.02
-    elif World.pace < 1:
-      World.pace += 0.02
+      world.pace = world.pace - 0.02
+    elif world.pace < 1:
+      world.pace += 0.02
     return task.again
         
         
@@ -1096,7 +1156,7 @@ class SkillHandler (DirectObject):
     self.dummy.reparentTo(render)
     self.dummy.setPos(Point3(100,100,0))
     self.dummy = Body(self.dummy,0,Vec3(0,0,0),Vec3(0,0,0))
-    World.objects.append(self.dummy)
+    world.objects.append(self.dummy)
     
     
   def setupMeteorPath(self, pos):
@@ -1144,8 +1204,8 @@ class SkillHandler (DirectObject):
     meteor.setScale(0.2)
     meteorCollider = meteor.attachNewNode(CollisionNode('mtnode'))
     meteorCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
-    base.cTrav.addCollider(meteorCollider, World.collisionHandler)
-    World.objects.append(Body(meteor,0.001,(pos0 - pos1)/30.0,Vec3(0,0,0)))
+    base.cTrav.addCollider(meteorCollider, world.collisionHandler)
+    world.objects.append(Body(meteor,0.001,(pos0 - pos1)/30.0,Vec3(0,0,0)))
   
   
   def createBlackHole(self, pos, name):
@@ -1161,8 +1221,8 @@ class SkillHandler (DirectObject):
     blackhole.setScale(2)
     blackholeCollider = blackhole.attachNewNode(CollisionNode('bhnode'))
     blackholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
-    base.cTrav.addCollider(blackholeCollider, World.collisionHandler)
-    World.objects.append(Body(blackhole,3,Vec3(0,0,0),Vec3(0,0,0)))
+    base.cTrav.addCollider(blackholeCollider, world.collisionHandler)
+    world.objects.append(Body(blackhole,3,Vec3(0,0,0),Vec3(0,0,0)))
       
   
   def createWhiteHole(self, pos, name):
@@ -1178,8 +1238,8 @@ class SkillHandler (DirectObject):
     whitehole.setScale(2)
     whiteholeCollider = whitehole.attachNewNode(CollisionNode('whnode'))
     whiteholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
-    base.cTrav.addCollider(whiteholeCollider, World.collisionHandler)
-    World.objects.append(Body(whitehole,-1,Vec3(0,0,0),Vec3(0,0,0)))
+    base.cTrav.addCollider(whiteholeCollider, world.collisionHandler)
+    world.objects.append(Body(whitehole,-1,Vec3(0,0,0),Vec3(0,0,0)))
 
     
   def createWormHole(self, pos, name):
@@ -1193,15 +1253,15 @@ class SkillHandler (DirectObject):
     wormhole.setScale(0.5)
     wormholeCollider = wormhole.attachNewNode(CollisionNode('holenode'))
     wormholeCollider.node().addSolid(CollisionSphere(0, 0, 0, 1))
-    base.cTrav.addCollider(wormholeCollider, World.collisionHandler)
-    World.objects.append(Body(wormhole,0,Vec3(0,0,0),Vec3(0,0,0)))
+    base.cTrav.addCollider(wormholeCollider, world.collisionHandler)
+    world.objects.append(Body(wormhole,0,Vec3(0,0,0),Vec3(0,0,0)))
     self.holes.append(wormhole)
 
 class Particle():
   def __init__(self,mode,node):
     self.particle = ParticleEffect()
     self.timer = 0
-    World.particles.append(self)
+    world.particles.append(self)
     if mode == "meteor":
       self.particle.setTextureOff()
       self.particle.loadConfig("fireish.ptf")
@@ -1220,7 +1280,7 @@ class Particle():
 class RandomHazardsHandler:
   def __init__ (self):
     self.level = 1
-    self.levelText = OnscreenText(text = 'Level: ' + str(self.level), font=SideMenu.font, pos = (0, 0.3), scale = (0.3,0.1), fg = (255,255,255,200), parent = SideMenu.myRender2d)
+    self.levelText = OnscreenText(text = 'Level: ' + str(self.level), font=sideMenu.font, pos = (0, 0.3), scale = (0.3,0.1), fg = (255,255,255,200), parent = sideMenu.myRender2d)
     self.minFreq = 200
     self.maxFreq = 400
     self.minRadius = 100
@@ -1233,9 +1293,10 @@ class RandomHazardsHandler:
     taskMgr.add(self.randomHazardTask, "Random Hazard Task")
 
   def changeLevel(self):
+    world.points += (self.level**3)*world.n*world.rate
     self.level += 1
     self.levelText.destroy()
-    self.levelText = OnscreenText(text = 'Level: ' + str(self.level), font=SideMenu.font, pos = (0, 0.3), scale = (0.3,0.1), fg = (255,255,255,200), parent = SideMenu.myRender2d)
+    self.levelText = OnscreenText(text = 'Level: ' + str(self.level), font=sideMenu.font, pos = (0, 0.3), scale = (0.3,0.1), fg = (255,255,255,200), parent = sideMenu.myRender2d)
     self.minRadius -= 10
     self.minFreq -= 10
     self.maxFreq -= 10
@@ -1280,7 +1341,7 @@ class RandomHazardsHandler:
       if self.randomHazard in ["randombh", "randomwh"]:
         self.duration -= 1
         if self.duration == 0:
-            World.vanishNode(self.randomHazard)
+            world.vanishNode(self.randomHazard)
             self.randomHazard = ""
     return task.again
 
@@ -1368,20 +1429,19 @@ class StartMenu(DirectObject):
     self.creditFrame.show()
   
   def startGame(self,scenario):
-    global World, Skills, Camera, Sound, RandomHazards, SideMenu
+    global world, Skills, Camera, Sound, RandomHazards, sideMenu
     self.destroyMenu()
     Sound.stop(Sound.menu)
     music = [Sound.typical,Sound.giant,Sound.low]
     Sound.play(music[scenario])
-    World = World(scenario)
-    SideMenu = SideMenu()
+    world = World(scenario)
+    sideMenu = SideMenu()
     Skills = SkillHandler()
     Camera = CameraHandler()
     loadPrcFile("config/Config.prc")
-    World.filters = CommonFilters(base.win, Camera.camera)
-    World.filters.setVolumetricLighting(World.sun2,32,0.7,0.95,0.05)
+    world.filters = CommonFilters(base.win, Camera.camera)
+    world.filters.setVolumetricLighting(world.sun2,32,0.7,0.95,0.05)
     RandomHazards = RandomHazardsHandler()
-
     
 class SoundBox():
   def __init__(self):
@@ -1406,9 +1466,8 @@ class SoundBox():
     try:
       sound.stop()
     except: pass
-
-
+    
         
 Sound = SoundBox()
-StartMenu()
+a = StartMenu()
 run()
