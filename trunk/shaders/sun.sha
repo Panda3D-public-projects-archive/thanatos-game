@@ -26,6 +26,9 @@ void fshader(float2 l_texcoord0 : TEXCOORD0,
    float c1 = tex2D(k_tex1, l_texcoord0 + off1).x;
    float c2 = tex2D(k_tex2, l_texcoord0 + off2).x;
    float v = saturate(c1+c2-0.2);
+   
+   if (v > 0.9)
+        v = 0.5;
    //v = c2;
    //o_color = tex2D(k_fire, float2(v,0)) + float4(0.1,0.1,0.1,1);
    o_color = tex2D(k_fire, float2(v,0));

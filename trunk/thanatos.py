@@ -47,13 +47,8 @@ class World:
     self.minimapRegion = base.win.makeDisplayRegion(0.815, 0.985, 0.71, 0.97)
     self.minimapRegion.setSort(1)
     self.minimapRegion.setClearColorActive(True)
-    self.minimapRegion.setClearColor(VBase4(1, 1, 1, 1))
+    self.minimapRegion.setClearColor(VBase4(0, 0, 0, 1))
     self.minimapRegion.setClearDepthActive(True)
-    minimapc = Camera('minicam')
-    minimapcNP = render.attachNewNode(minimapc)
-    self.minimapRegion.setCamera(minimapcNP)
-    minimapcNP.setPos(0, 0, 270)
-    minimapcNP.setHpr(0,-90,0)
     base.setFrameRateMeter(True)
     
     #Enables particle effects
@@ -64,7 +59,7 @@ class World:
     #Different values of self.caution define how far lines start to appear,
     #but will make more sense by the time others difficult levels get implemented.
     self.caution = 0
-    self.lines = LineNodePath(parent = render, thickness = 3.0, colorVec = Vec4(1, 0, 0, 1))
+    self.lines = LineNodePath(parent = render, thickness = 3.0, colorVec = Vec4(1, 255, 0, 1))
     self.orbitlines = LineSegs()
     self.orbitlines.setThickness(1)
     self.orbitlines.setColor(Vec4(0,1,0,1))
@@ -696,8 +691,8 @@ class World:
         mtvel = Vec3(0,0,0)
         for j in range(len(self.objects)):
           if entry.getFromNodePath().getParent() == self.objects[j].node:
-            mt = self.objects.pop(j)
-            mtvel = mt.vel*mt.mass
+            mtvel = self.objects[j].vel * self.objects[j].mass
+            self.objects.pop(j)
             entry.getFromNodePath().getParent().detachNode()
             break
         for j in range(len(self.objects)):
@@ -731,7 +726,7 @@ class CameraHandler(DirectObject):
   def   __init__(self): 
     base.disableMouse() 
     self.setupVars() 
-    self.setupCamera()
+    self.setupCameras()
     self.setupInput() 
     self.setupTasks() 
        
@@ -743,18 +738,30 @@ class CameraHandler(DirectObject):
     self.zoomOutLimit = 380     #Camera's maximum distance from anchor
     self.orbit = None 
     
-  def setupCamera(self):
+  def setupCameras(self):
     '''Define an anchor node which camera will follow
        set camera and achor positions
     '''
+    #Creating main camera
     camNode = Camera('cam')
     self.camera = NodePath(camNode)
     World.mainRegion.setCamera(self.camera)
     
-    #Configure camera lens
-    width = base.win.getProperties().getXSize() 
-    height = base.win.getProperties().getYSize() 
-    base.camLens.setAspectRatio(0.8*width/height) 
+    #Creating mini map camera
+    self.miniCam = Camera('minicam')
+    minimapcNP = render.attachNewNode(self.miniCam)
+    World.minimapRegion.setCamera(minimapcNP)
+    
+    #Configure cameras lens
+    width = base.win.getProperties().getXSize()
+    height = base.win.getProperties().getYSize()
+    self.miniLens = OrthographicLens()
+    self.miniLens.setAspectRatio(0.17*width/(0.26*height))
+    base.camLens.setAspectRatio(0.8*width/height)
+    self.miniLens.setFilmSize(230, 230)
+    self.miniLens.setNearFar(-1000, 1000)
+    minimapcNP.setHpr(0,-90,0)
+    self.miniCam.setLens(self.miniLens) 
     self.camera.node().setLens(base.camLens)
     
     self.camAnchor = render.attachNewNode("Cam Anchor")
@@ -781,8 +788,9 @@ class CameraHandler(DirectObject):
   def onWindowEvent(self, window):
     '''Set the aspect ratio whenever there's a windows event (resize)'''
     width = base.win.getProperties().getXSize() 
-    height = base.win.getProperties().getYSize() 
-    base.camLens.setAspectRatio(0.8*width/height)   
+    height = base.win.getProperties().getYSize()
+    base.camLens.setAspectRatio(0.8*width/height)
+    self.miniLens.setAspectRatio(0.17*width/(0.26*height))
     
   def setZoom(self, zoom):
     '''Method that zoom ir or out the camera'''
